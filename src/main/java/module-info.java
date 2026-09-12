@@ -7,4 +7,7 @@ module com.example.campuscycle {
 
     opens com.example.campuscycle to javafx.fxml;
     exports com.example.campuscycle;
+    exports com.example.campuscycle.model;
+    exports com.example.campuscycle.ui;
+    exports com.example.campuscycle.database;
 }

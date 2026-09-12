@@ -1,5 +1,7 @@
 package com.example.campuscycle;
 
+import com.example.campuscycle.database.DatabaseConnection;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -12,7 +14,7 @@ public class test1 {
                 """;
 
 
-        try (Connection connection = databaseConnector.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, "CC-TEST001");
             statement.setString(2, "Sayed");
             statement.setString(3, "01712345678");

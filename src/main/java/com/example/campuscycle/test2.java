@@ -1,5 +1,7 @@
 package com.example.campuscycle;
 
+import com.example.campuscycle.database.DatabaseConnection;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -9,7 +11,7 @@ public class test2 {
     static void main(String[] args) {
         String sql= "select * from cycles";
 
-        try(Connection connection= databaseConnector.getConnection(); PreparedStatement statement= connection.prepareStatement(sql); ResultSet result= statement.executeQuery()){
+        try(Connection connection= DatabaseConnection.getConnection(); PreparedStatement statement= connection.prepareStatement(sql); ResultSet result= statement.executeQuery()){
 
         while(result.next())
         {

@@ -1,25 +1,24 @@
-package com.example.campuscycle;
+package com.example.campuscycle.model;
 
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
-public class cycle {
+public class Cycle {
     public enum cycleType {CITY_COMMUTER, CARGO_UTILITY, ELECTRIC_SCOOTER}
-    boolean is_gear;
-    boolean needs_fuel;
-    boolean needs_liscence;
-    String cycle_id;
-    String owner_name;
-    String ownwer_phone;
-    ZonedDateTime purchase_data;
-    ZonedDateTime registered_at;
-    public enum physical_condition{Perfect, Usuable, Broken};
-    boolean is_verified;
-    cycleType type;
-    physical_condition condition;
+    public boolean is_gear;
+    public boolean needs_fuel;
+    public boolean needs_liscence;
+    public String cycle_id;
+    public String owner_name;
+    public String ownwer_phone;
+    public ZonedDateTime purchase_data;
+    public ZonedDateTime registered_at;
+    public enum physical_condition {Perfect, Usuable, Broken}
+    public boolean is_verified;
+    public cycleType type;
+    public physical_condition condition;
 
-    public void register_new_cycle(String owner_name, String ownwer_phone, cycleType type, physical_condition condition, ZonedDateTime purchase_data, boolean is_verified)
-    {
+    public void register_new_cycle(String owner_name, String ownwer_phone, cycleType type, physical_condition condition, ZonedDateTime purchase_data, boolean is_verified) {
         // 1. Assign all information passed as arguments
         this.owner_name = owner_name;
         this.ownwer_phone = ownwer_phone;
@@ -32,16 +31,13 @@ public class cycle {
         this.registered_at = ZonedDateTime.now();
 
         // 3. Auto-generate cycle ID if not already set
-        if (this.cycle_id == null || this.cycle_id.isEmpty())
-        {
+        if (this.cycle_id == null || this.cycle_id.isEmpty()) {
             this.cycle_id = "CC-" + UUID.randomUUID().toString().substring(0, 7).toUpperCase();
         }
 
         // 4. Auto-configure flags based on the cycle type
-        if (this.type != null)
-        {
-            switch (this.type)
-            {
+        if (this.type != null) {
+            switch (this.type) {
                 case ELECTRIC_SCOOTER -> {
                     this.is_gear = false;
                     this.needs_fuel = true;
@@ -62,14 +58,7 @@ public class cycle {
     }
 
     // Overload without is_verified (defaults is_verified to false)
-    public void register_new_cycle(String owner_name, String ownwer_phone, cycleType type, physical_condition condition, ZonedDateTime purchase_data)
-    {
+    public void register_new_cycle(String owner_name, String ownwer_phone, cycleType type, physical_condition condition, ZonedDateTime purchase_data) {
         register_new_cycle(owner_name, ownwer_phone, type, condition, purchase_data, false);
     }
-
-    // ==========================================
-    // MySQL Database Integration
-    // ==========================================
-
-
 }
