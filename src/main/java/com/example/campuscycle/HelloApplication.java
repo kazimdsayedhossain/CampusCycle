@@ -108,6 +108,12 @@ public class HelloApplication extends Application {
         contentArea.getChildren().add(cyclesLabel);
     });
 
+    Label profileLabel = new Label("Profile");
+    profileButton.setOnAction(event->{
+        contentArea.getChildren().clear();
+        contentArea.getChildren().add(profileLabel);
+    });
+
     contentArea.getChildren().add(homeLabel);;
     mainLayout.getChildren().addAll(navigationBar,contentArea);
     navigationBar.getChildren().addAll(title,homeButton,cyclesButton,profileButton,spacer,minimizeButton,maximizeButton,closeButton);
