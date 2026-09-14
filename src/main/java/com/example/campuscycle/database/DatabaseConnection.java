@@ -1,9 +1,13 @@
 package com.example.campuscycle.database;
 
 import com.example.campuscycle.model.Cycle;
+import com.sun.source.tree.WhileLoopTree;
 
+import javax.naming.ContextNotEmptyException;
 import java.lang.reflect.Type;
 import java.sql.*;
+import java.time.ZoneId;
+import java.util.ArrayList;
 
 public class DatabaseConnection {
     private static final String URL = "jdbc:mysql://localhost:3306/campus_cycle_db";
@@ -49,5 +53,52 @@ public class DatabaseConnection {
         {
             e.printStackTrace();
         }
+    }
+
+    public static ArrayList<Cycle> getAllCycles()
+    {
+        ArrayList<Cycle> list = new ArrayList<>();
+
+        String sql= "SELECT * FROM cycles";
+
+        try(Connection connection = getConnection(); PreparedStatement statement= connection.prepareStatement(sql); ResultSet result= statement.executeQuery();)
+        {
+            while (result.next())
+            {
+                Cycle cycle= new Cycle();
+                cycle.cycle_id= result.getString("cycle_id");
+                cycle.owner_name=result.getString(("owner_name"));
+                cycle.ownwer_phone=result.getString("owner_phone");
+
+                String cycle_type_string = result.getString("cycle_type");
+                if(cycle_type_string!=null)
+                {
+                    cycle.type=Cycle.cycleType.valueOf(cycle_type_string);
+                }
+
+                Timestamp purTs=result.getTimestamp("purchase_date");
+                if(purTs!=null)
+                {
+                    cycle.purchase_data=purTs.toInstant().atZone(ZoneId.systemDefault());
+                }
+                Timestamp regTs= result.getTimestamp("registered_at");
+                if(regTs!=null)
+                {
+                    cycle.registered_at=regTs.toInstant().atZone(ZoneId.systemDefault());
+                }
+
+                cycle.is_gear=result.getBoolean("is_gear");
+                cycle.needs_fuel=result.getBoolean("needs_fuel");
+                cycle.is_verified=result.getBoolean(("is_verified"));
+                cycle.needs_liscence=result.getBoolean("needs_liscence");
+
+                list.add(cycle);
+            }
+        }catch(SQLException e)
+        {
+            e.printStackTrace();
+        }
+
+        return list;
     }
 }

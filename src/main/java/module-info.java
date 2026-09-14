@@ -3,6 +3,8 @@ module com.example.campuscycle {
     requires javafx.fxml;
     requires java.desktop;
     requires java.sql;
+    requires java.naming;
+    requires jdk.compiler;
 
 
     opens com.example.campuscycle to javafx.fxml;

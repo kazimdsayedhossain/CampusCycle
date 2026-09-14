@@ -1,14 +1,44 @@
 package com.example.campuscycle.ui;
 
+import com.example.campuscycle.database.DatabaseConnection;
+import com.example.campuscycle.model.Cycle;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 
-public class CyclePage extends StackPane {
+import java.util.ArrayList;
+
+public class CyclePage extends VBox {
+
+
 
     public CyclePage() {
         setAlignment(Pos.CENTER);
-        Label cyclesLabel = new Label("Cycle Page");
-        getChildren().add(cyclesLabel);
+        setSpacing(10);
+
+        FlowPane cardContainer= new FlowPane();
+        cardContainer.setHgap(15);
+        cardContainer.setVgap(15);
+        cardContainer.setAlignment(Pos.CENTER);
+
+
+        ArrayList<Cycle> cycleList= DatabaseConnection.getAllCycles();
+
+        for(Cycle c: cycleList)
+        {
+            cardContainer.getChildren().add(new CycleCard(c));
+        }
+
+        ScrollPane scrollPane=new ScrollPane(cardContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+
+        getChildren().add(scrollPane);
     }
+
+
 }
