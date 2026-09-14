@@ -14,31 +14,31 @@ import java.util.ArrayList;
 
 public class CyclePage extends VBox {
 
-
+    private FlowPane cardContainer;
 
     public CyclePage() {
         setAlignment(Pos.CENTER);
         setSpacing(10);
 
-        FlowPane cardContainer= new FlowPane();
+        cardContainer = new FlowPane();
         cardContainer.setHgap(15);
         cardContainer.setVgap(15);
         cardContainer.setAlignment(Pos.CENTER);
 
+        loadCycles();
 
-        ArrayList<Cycle> cycleList= DatabaseConnection.getAllCycles();
-
-        for(Cycle c: cycleList)
-        {
-            cardContainer.getChildren().add(new CycleCard(c));
-        }
-
-        ScrollPane scrollPane=new ScrollPane(cardContainer);
+        ScrollPane scrollPane = new ScrollPane(cardContainer);
         scrollPane.setFitToWidth(true);
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
         getChildren().add(scrollPane);
     }
 
-
+    public void loadCycles() {
+        cardContainer.getChildren().clear();
+        ArrayList<Cycle> cycleList = DatabaseConnection.getAllCycles();
+        for (Cycle c : cycleList) {
+            cardContainer.getChildren().add(new CycleCard(c, this::loadCycles));
+        }
+    }
 }

@@ -59,7 +59,7 @@ public class DatabaseConnection {
     {
         ArrayList<Cycle> list = new ArrayList<>();
 
-        String sql= "SELECT * FROM cycles";
+        String sql= "SELECT * FROM cycles WHERE is_available=TRUE";
 
         try(Connection connection = getConnection(); PreparedStatement statement= connection.prepareStatement(sql); ResultSet result= statement.executeQuery();)
         {
@@ -100,5 +100,20 @@ public class DatabaseConnection {
         }
 
         return list;
+    }
+
+    public static boolean bookCycle(String cycleid){
+        String sql = "UPDATE cycles SET is_available = FALSE WHERE  cycle_id=?";
+
+        try(Connection connection = getConnection(); PreparedStatement statement= connection.prepareStatement(sql)){
+            statement.setString(1,cycleid);
+            int rowUpdated = statement.executeUpdate();
+            return rowUpdated>0;
+
+        }catch (SQLException e)
+        {
+            e.printStackTrace();
+            return false;
+        }
     }
 }

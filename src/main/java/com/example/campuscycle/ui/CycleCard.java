@@ -2,14 +2,17 @@ package com.example.campuscycle.ui;
 
 import com.example.campuscycle.model.Cycle;
 import javafx.geometry.Insets;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 
-
 public class CycleCard extends VBox {
 
-    public CycleCard(Cycle cycle)
-    {
+    public CycleCard(Cycle cycle) {
+        this(cycle, null);
+    }
+
+    public CycleCard(Cycle cycle, Runnable onBookingConfirmed) {
         setSpacing(8);
         setPadding(new Insets(15));
         setPrefWidth(220);
@@ -35,8 +38,15 @@ public class CycleCard extends VBox {
         Label phoneLabel = new Label("Contact: " + cycle.ownwer_phone);
         phoneLabel.setStyle("-fx-text-fill: #334155; -fx-font-size: 13px;");
 
-        getChildren().addAll(idLabel, typeLabel, ownerLabel, conditionLabel, phoneLabel);
+        Button bookButton = new Button("Book Now");
+        bookButton.setStyle("-fx-background-color: #0284c7; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;");
+        bookButton.setMaxWidth(Double.MAX_VALUE);
 
+        bookButton.setOnAction(e -> {
+            new BookingDialog(cycle, onBookingConfirmed).show();
+        });
+
+        getChildren().addAll(idLabel, typeLabel, ownerLabel, conditionLabel, phoneLabel, bookButton);
     }
 
 }

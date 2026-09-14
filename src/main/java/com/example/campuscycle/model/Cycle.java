@@ -17,6 +17,7 @@ public class Cycle {
     public boolean is_verified;
     public cycleType type;
     public physical_condition condition;
+    public boolean is_available = true;
 
     public void register_new_cycle(String owner_name, String ownwer_phone, cycleType type, physical_condition condition, ZonedDateTime purchase_data, boolean is_verified) {
         // 1. Assign all information passed as arguments
@@ -26,6 +27,7 @@ public class Cycle {
         this.condition = (condition != null) ? condition : physical_condition.Usuable;
         this.purchase_data = purchase_data;
         this.is_verified = is_verified;
+        this.is_available = true;
 
         // 2. Set the registration time to current time (not passed as argument)
         this.registered_at = ZonedDateTime.now();
