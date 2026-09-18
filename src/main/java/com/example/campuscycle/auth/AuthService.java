@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 public class AuthService {
     private static final String SUPABASE_URL= "https://wqybuukgcwhcwiwfffda.supabase.co";
     private static final String SuPABASE_PUB_KEY= "sb_publishable_Hj5sFSnjDqdLBJCeFSskzA_teyYoUIp";
+    public static String currentToken=null;
 
     private static final HttpClient client = HttpClient.newHttpClient();
 
@@ -41,8 +42,15 @@ public class AuthService {
         HttpResponse<String> response = client.send(request, bodyHandler);
 
         if (response.statusCode() == 200) {
+
+            String rawText = response.body();
+            JsonElement jsonElement = JsonParser.parseString(rawText);
+            JsonObject success_response_obj = jsonElement.getAsJsonObject();
+            currentToken = success_response_obj.get("access_token").getAsString();
             return "Success";
-        } else {
+        }
+
+        else {
             String rawJsonText = response.body();
             JsonElement jsonElement = JsonParser.parseString(rawJsonText);
             JsonObject errorJson = jsonElement.getAsJsonObject();
