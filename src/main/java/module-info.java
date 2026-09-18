@@ -5,11 +5,15 @@ module com.example.campuscycle {
     requires java.sql;
     requires java.naming;
     requires jdk.compiler;
+    requires com.google.gson;
+    requires java.net.http;
 
 
     opens com.example.campuscycle to javafx.fxml;
+    opens com.example.campuscycle.auth to com.google.gson;
     exports com.example.campuscycle;
     exports com.example.campuscycle.model;
     exports com.example.campuscycle.ui;
     exports com.example.campuscycle.database;
+    exports com.example.campuscycle.auth;
 }
