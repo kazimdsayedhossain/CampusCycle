@@ -49,7 +49,7 @@ public class BookingDialog extends Stage{
             int duration = newVal.intValue();
             durationLabel.setText("Duration: " + duration + " mins");
             int extraSteps = (duration - 15) / 15;
-            double totalPrice = BASE_FARE * Math.pow(1.05, extraSteps);
+            double totalPrice = BASE_FARE * Math.pow(1.1, extraSteps);
             priceLabel.setText(String.format("Total Price: $%.2f", totalPrice));
         });
 
