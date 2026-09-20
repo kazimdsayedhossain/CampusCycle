@@ -1,52 +1,42 @@
 package com.example.campuscycle;
 
-import com.example.campuscycle.ui.LoginView;
-import javafx.application.Application;
-import javafx.scene.Scene;
-import javafx.stage.Stage;
-import com.example.campuscycle.auth.AuthService;
-import javafx.application.Platform;
+import com.example.campuscycle.database.DatabaseConnection;
 
-public class __test__ extends Application {
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
-    public void start(Stage primaryStage){
-        LoginView loginView = new LoginView();
+public class __test__ {
 
-        loginView.getLoginButton().setOnAction(e->{
-            String email = loginView.getEmail();
-            String password = loginView.getPassword();
+    // Note: MUST be 'public static void main'
+    public static void main(String[] args) {
+        String sql = "SELECT cycle_id, owner_name, cycle_type, is_verified, is_available FROM cycles";
 
-            if(email.isEmpty() || password.isEmpty())
-            {
-                loginView.setStatus("Enter both email and password", true);
-                return;
+        System.out.println("Connecting to Supabase PostgreSQL...");
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet result = statement.executeQuery()) {
+
+            System.out.println("Connected successfully! Cycles found in cloud:");
+            System.out.println("--------------------------------------------------");
+
+            while (result.next()) {
+                String cycleId = result.getString("cycle_id");
+                String ownerName = result.getString("owner_name");
+                String type = result.getString("cycle_type");
+                boolean verified = result.getBoolean("is_verified");
+                boolean available = result.getBoolean("is_available");
+
+                System.out.println("ID: " + cycleId + " | Owner: " + ownerName + " | Type: " + type + " | Verified: " + verified + " | Available: " + available);
             }
 
-            loginView.setStatus("Signing in...", false);
+            System.out.println("--------------------------------------------------");
 
-            new Thread(()->{
-               String result = AuthService.login(email, password);
-               Platform.runLater(()->{
-                   if(result=="Success")
-                   {
-                       loginView.setStatus("Login successful! Welcome", false);
-                   }
-                   else {
-                       loginView.setStatus(result, true);
-                   }
-               });
-            }).start();
-        });
-
-        Scene scene = new Scene(loginView, 460,520);
-        primaryStage.setTitle("CampusCycle - Login Test");
-        primaryStage.setScene(scene);
-        primaryStage.setResizable(false);
-        primaryStage.show();
-    }
-
-
-    static void main(String[] args) {
-    launch(args);
+        } catch (SQLException e) {
+            System.err.println("Connection failed!");
+            e.printStackTrace();
+        }
     }
 }

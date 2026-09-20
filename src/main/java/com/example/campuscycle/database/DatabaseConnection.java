@@ -2,6 +2,7 @@ package com.example.campuscycle.database;
 
 import com.example.campuscycle.model.Cycle;
 import com.sun.source.tree.WhileLoopTree;
+import javafx.scene.shape.Cylinder;
 
 import javax.naming.ContextNotEmptyException;
 import java.lang.reflect.Type;
@@ -10,9 +11,12 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 
 public class DatabaseConnection {
-    private static final String URL = "jdbc:mysql://localhost:3306/campus_cycle_db";
-    private static final String USER = "root";
-    private static final String PASSWORD = "sayed";
+
+    // 1. Clean URL with Session Mode (port 5432) and SSL encryption enabled
+    private static final String URL = "jdbc:postgresql://aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
+    private static final String USER = "postgres.wqybuukgcwhcwiwfffda";
+    private static final String PASSWORD = "ghostrider_campus_cycle";
+
 
     public static Connection getConnection() throws SQLException {
         return DriverManager.getConnection(URL, USER, PASSWORD);
@@ -59,7 +63,7 @@ public class DatabaseConnection {
     {
         ArrayList<Cycle> list = new ArrayList<>();
 
-        String sql= "SELECT * FROM cycles WHERE is_available=TRUE";
+        String sql= "SELECT * FROM cycles WHERE is_available=TRUE AND is_verified=TRUE";
 
         try(Connection connection = getConnection(); PreparedStatement statement= connection.prepareStatement(sql); ResultSet result= statement.executeQuery();)
         {
@@ -112,6 +116,63 @@ public class DatabaseConnection {
 
         }catch (SQLException e)
         {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+
+    public static ArrayList<Cycle> getPendingCycles() {
+        ArrayList<Cycle> list = new ArrayList<>();
+        String sql = "SELECT * FROM cycles WHERE is_verified = FALSE";
+
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet result = statement.executeQuery()) {
+
+            while (result.next()) {
+                Cycle cycle = new Cycle();
+                cycle.cycle_id = result.getString("cycle_id");
+                cycle.owner_name = result.getString("owner_name");
+                cycle.ownwer_phone = result.getString("owner_phone");
+
+                String cycle_type_string = result.getString("cycle_type");
+                if (cycle_type_string != null) {
+                    cycle.type = Cycle.cycleType.valueOf(cycle_type_string);
+                }
+
+                String condString = result.getString("physical_condition");
+                if (condString != null) {
+                    cycle.condition = Cycle.physical_condition.valueOf(condString);
+                }
+
+                cycle.is_gear = result.getBoolean("is_gear");
+                cycle.needs_fuel = result.getBoolean("needs_fuel");
+                cycle.needs_liscence = result.getBoolean("needs_liscence");
+                cycle.is_verified = result.getBoolean("is_verified");
+                cycle.is_available = result.getBoolean("is_available");
+
+                list.add(cycle);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return list;
+    }
+
+
+    public static boolean verifyCycle(String cycleId) {
+        String sql = "UPDATE cycles SET is_verified = TRUE WHERE cycle_id = ?";
+
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, cycleId);
+            int rowsUpdated = statement.executeUpdate();
+            return rowsUpdated > 0;
+
+        } catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
