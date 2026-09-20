@@ -1,9 +1,11 @@
 package com.example.campuscycle;
 
 import com.example.campuscycle.auth.AuthService;
+import com.example.campuscycle.auth.UserSession;
 import com.example.campuscycle.ui.ContentArea;
 import com.example.campuscycle.ui.LoginView;
 import com.example.campuscycle.ui.NavigationBar;
+import  com.example.campuscycle.ui.adminDashboard;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
@@ -25,6 +27,7 @@ public class HelloApplication extends Application {
             if(email.isEmpty() || password.isEmpty())
             {
                 loginView.setStatus("Enter both email and password", true);
+                return;
             }
 
             loginView.setStatus("Signing in...", false);
@@ -36,7 +39,11 @@ public class HelloApplication extends Application {
                     if("Success".equalsIgnoreCase(result))
                     {
                         loginStage.close();
-                        showDashboard();
+                        if(UserSession.getInstance().isAdmin())
+                        {
+                            showAdminDashboard();
+                        }
+                        else showDashboard();
                     }
                     else{
                         loginView.setStatus(result, true);
@@ -52,6 +59,18 @@ public class HelloApplication extends Application {
         loginStage.show();
     }
 
+    private void  showAdminDashboard()
+    {
+        Stage adminStage = new Stage();
+        adminStage.setTitle("CampusCycle Admin");
+        adminDashboard AdminDashBoard = new adminDashboard(adminStage, ()->{
+            start(new Stage());
+        });
+
+        Scene scene = new Scene(AdminDashBoard, 900, 600);
+        adminStage.setScene(scene);
+        adminStage.show();
+    }
 
     private void showDashboard()
     {

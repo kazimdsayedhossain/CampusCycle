@@ -17,13 +17,13 @@ public class LoginView extends VBox {
     private final Button loginButton;
 
     public LoginView() {
-        // 1. Configure the main container (spacing: 16px between elements)
+
         super(16);
         setAlignment(Pos.CENTER);
         setPadding(new Insets(30, 40, 30, 40));
-        setStyle("-fx-background-color: #f8fafc;"); // Light modern clean background
+        setStyle("-fx-background-color: #f8fafc;");
 
-        // 2. Card Container (White box with rounded corners and shadow)
+
         VBox card = new VBox(14);
         card.setMaxWidth(380);
         card.setPadding(new Insets(28));
@@ -34,14 +34,14 @@ public class LoginView extends VBox {
                         "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.08), 12, 0, 0, 4);"
         );
 
-        // 3. Title and Subtitle
+
         Label appTitle = new Label("CampusCycle");
         appTitle.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #0284c7;");
 
         Label subtitle = new Label("Sign in to your account");
         subtitle.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
 
-        // 4. Role Selection (User vs Admin toggle)
+
         Label roleTitle = new Label("Select Your Role:");
         roleTitle.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #334155;");
 
@@ -58,7 +58,7 @@ public class LoginView extends VBox {
         HBox roleBox = new HBox(20, userRadio, adminRadio);
         roleBox.setAlignment(Pos.CENTER);
 
-        // 5. Input Fields
+
         Label emailLabel = new Label("Email Address");
         emailLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #334155;");
         emailField = new TextField();
@@ -71,19 +71,19 @@ public class LoginView extends VBox {
         passwordField.setPromptText("Enter your password");
         passwordField.setStyle("-fx-pref-height: 36px; -fx-background-radius: 6; -fx-border-color: #cbd5e1; -fx-border-radius: 6;");
 
-        // VBox wrappers to keep each label right on top of its field
+
         VBox emailBox = new VBox(4, emailLabel, emailField);
         emailBox.setAlignment(Pos.CENTER_LEFT);
 
         VBox passBox = new VBox(4, passLabel, passwordField);
         passBox.setAlignment(Pos.CENTER_LEFT);
 
-        // 6. Status message label (for displaying "Invalid password", "Logging in...", etc.)
+
         statusLabel = new Label("");
         statusLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold;");
         statusLabel.setWrapText(true);
 
-        // 7. Login Button
+
         loginButton = new Button("Sign In");
         loginButton.setMaxWidth(Double.MAX_VALUE);
         loginButton.setStyle(
@@ -96,7 +96,7 @@ public class LoginView extends VBox {
                         "-fx-cursor: hand;"
         );
 
-        // Assemble everything inside the card
+
         card.getChildren().addAll(
                 appTitle, subtitle,
                 roleTitle, roleBox,
@@ -105,7 +105,7 @@ public class LoginView extends VBox {
                 loginButton
         );
 
-        // Add card to this main container
+
         getChildren().add(card);
     }
 
