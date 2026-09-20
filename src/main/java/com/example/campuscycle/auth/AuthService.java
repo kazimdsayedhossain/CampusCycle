@@ -1,5 +1,6 @@
 package com.example.campuscycle.auth;
 
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -7,6 +8,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import static com.example.campuscycle.database.DatabaseConnection.getConnection;
 
 public class AuthService {
     private static final String SUPABASE_URL= "https://wqybuukgcwhcwiwfffda.supabase.co";
@@ -15,6 +21,25 @@ public class AuthService {
 
     private static final HttpClient client = HttpClient.newHttpClient();
 
+        private static String fetchUserRole(String userId)
+        {
+            String sql = "SELECT role FROM PROFILES WHERE ID=?::uuid";
+
+            try(Connection connection = getConnection(); PreparedStatement statement = connection.prepareStatement(sql))
+            {
+                statement.setString(1,userId);
+                ResultSet response = statement.executeQuery();
+                if(response.next())
+                {
+                    return response.getString("role");
+                }
+            }catch (SQLException e)
+            {
+                e.printStackTrace();
+
+            }
+            return "USER";
+        }
 
         public static String login (String email, String password){
             try {
@@ -43,11 +68,18 @@ public class AuthService {
 
         if (response.statusCode() == 200) {
 
-            String rawText = response.body();
-            JsonElement jsonElement = JsonParser.parseString(rawText);
-            JsonObject success_response_obj = jsonElement.getAsJsonObject();
-            currentToken = success_response_obj.get("access_token").getAsString();
-            return "Success";
+           String rawText = response.body();
+           JsonElement element = JsonParser.parseString(rawText);
+           JsonObject responseObj= element.getAsJsonObject();
+
+           currentToken = responseObj.get("access_token").getAsString();
+           JsonObject userObj = responseObj.get("user").getAsJsonObject();
+           String userId = userObj.get("id").getAsString();
+
+           String role = fetchUserRole(userId);
+
+           UserSession.setSession(userId,email,role,currentToken);
+           return "Success";
         }
 
         else {
