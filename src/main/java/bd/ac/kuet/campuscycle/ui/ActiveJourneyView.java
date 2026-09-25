@@ -50,6 +50,7 @@ public class ActiveJourneyView extends VBox {
 
     private double assistMultiplier = 1.0;
     private Timeline ticker;
+    private volatile boolean disposed = false;
 
     public ActiveJourneyView(CampusUser user,
                              CampusRepository repo,
@@ -65,21 +66,44 @@ public class ActiveJourneyView extends VBox {
         setAlignment(Pos.TOP_CENTER);
         setMaxWidth(1160);
 
-        RentalRecord active = repo.activeRental(user);
-        if (active == null) {
-            getChildren().add(createNoActiveRideView());
-        } else {
-            getChildren().addAll(
-                    createHeader(active),
-                    createTelemetryCockpit(active),
-                    createPedalAssistAndLogsSection(),
-                    createReturnProtocol(active)
-            );
-            initTelemetryLogs(active);
-            startLiveTicker(active);
-        }
+        Label loading = new Label("Loading active rental...");
+        getChildren().add(loading);
+        AppExecutor.asyncThenFx(
+                () -> {
+                    try {
+                        return repo.activeRental(user);
+                    } catch (Exception e) {
+                        return null;
+                    }
+                },
+                active -> {
+                    getChildren().clear();
+                    if (disposed) return;
+                    if (active == null) {
+                        getChildren().add(createNoActiveRideView());
+                    } else {
+                        getChildren().addAll(
+                                createHeader(active),
+                                createTelemetryCockpit(active),
+                                createPedalAssistAndLogsSection(),
+                                createReturnProtocol(active)
+                        );
+                        initTelemetryLogs(active);
+                        startLiveTicker(active);
+                    }
+                },
+                err -> {
+                    getChildren().clear();
+                    if (!disposed) getChildren().add(createNoActiveRideView());
+                });
 
         ThemeManager.applyFadeIn(this);
+    }
+
+    /** Stop ticker when navigating away. */
+    public void dispose() {
+        disposed = true;
+        if (ticker != null) ticker.stop();
     }
 
     private VBox createNoActiveRideView() {
@@ -127,7 +151,7 @@ public class ActiveJourneyView extends VBox {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Label activeBadge = new Label("● LIVE COMMUTE");
+        Label activeBadge = new Label("LIVE COMMUTE");
         activeBadge.getStyleClass().add("badge-available");
 
         row.getChildren().addAll(icon, titleCol, spacer, activeBadge);
@@ -275,8 +299,8 @@ public class ActiveJourneyView extends VBox {
         dropLbl.getStyleClass().add("metric-label");
 
         ComboBox<String> hubCombo = new ComboBox<>();
-        hubCombo.getItems().addAll("KUET Central Library", "Student Welfare Centre", "KUET Main Gate", "Hall Gate", "Academic Building");
-        hubCombo.setValue("KUET Central Library");
+        hubCombo.getItems().addAll(bd.ac.kuet.campuscycle.domain.CampusHubs.names());
+        hubCombo.setValue(bd.ac.kuet.campuscycle.domain.CampusHubs.names().get(0));
         hubCombo.setMaxWidth(Double.MAX_VALUE);
         hubCombo.getStyleClass().add("filter-chip");
 
@@ -340,13 +364,13 @@ public class ActiveJourneyView extends VBox {
     }
 
     private void initTelemetryLogs(RentalRecord active) {
-        telemetryLogs.add("• [00:00:00] Dock lock disengaged at station");
-        telemetryLogs.add("• [00:00:05] Smart sensor telemetry online");
-        telemetryLogs.add("• [00:00:12] GPS geofence: KUET Campus Active Zone");
+        telemetryLogs.add("[00:00:00] Dock lock disengaged at station");
+        telemetryLogs.add("[00:00:05] Session started; fare quoted at booking");
+        telemetryLogs.add("[00:00:12] KUET Campus Active Zone");
     }
 
     private void addTelemetryLog(String msg) {
-        telemetryLogs.add(0, "• [" + timerLabel.getText() + "] " + msg);
+        telemetryLogs.add(0, "[" + timerLabel.getText() + "] " + msg);
         if (telemetryLogs.size() > 15) {
             telemetryLogs.remove(telemetryLogs.size() - 1);
         }
@@ -356,6 +380,10 @@ public class ActiveJourneyView extends VBox {
         long startSeconds = active.startedAt().toInstant().getEpochSecond();
 
         ticker = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+            if (disposed) {
+                ticker.stop();
+                return;
+            }
             long nowSec = Instant.now().getEpochSecond();
             long elapsed = Math.max(0, nowSec - startSeconds);
 
@@ -365,18 +393,14 @@ public class ActiveJourneyView extends VBox {
 
             timerLabel.setText(String.format("%02d:%02d:%02d", hours, mins, secs));
 
+            // Odometer/speed are estimates until hardware telemetry lands; fare is quoted.
             double baseKm = 0.8 + (elapsed / 45.0) * 0.12;
-            distLabel.setText(String.format("%.1f km", baseKm * assistMultiplier));
+            distLabel.setText(String.format("%.1f km (est.)", baseKm * assistMultiplier));
 
             double baseSpeed = 16.0 + Math.sin(elapsed / 10.0) * 4.5;
-            speedLabel.setText(String.format("%.1f km/h", baseSpeed * assistMultiplier));
+            speedLabel.setText(String.format("%.1f km/h (est.)", baseSpeed * assistMultiplier));
 
-            int elapsedMinutes = (int) Math.ceil(elapsed / 60.0);
-            int basePoisha = 2000;
-            int extraMin = Math.max(0, elapsedMinutes - 15);
-            int extraBlocks = (int) Math.ceil(extraMin / 15.0);
-            int totalPoisha = (int) ((basePoisha + (extraBlocks * 1000)) * 0.75); // 25% student subsidy
-            fareLabel.setText(String.format("BDT %.2f", totalPoisha / 100.0));
+            fareLabel.setText(bd.ac.kuet.campuscycle.domain.TariffService.formatBdt(active.quotedAmountPoisha()));
         }));
         ticker.setCycleCount(Animation.INDEFINITE);
         ticker.play();

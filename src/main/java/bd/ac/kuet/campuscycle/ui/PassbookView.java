@@ -101,14 +101,11 @@ public class PassbookView extends VBox {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button exportBtn = new Button("Export Statement (PDF)");
+        Button exportBtn = new Button("Export Statement (CSV)");
         exportBtn.getStyleClass().add("secondary-button");
         exportBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_CHECK, 13, Color.web("#0284C7")));
-        exportBtn.setTooltip(new Tooltip("Generate signed KUET Green Mobility transit statement"));
-        exportBtn.setOnAction(e -> {
-            Alert a = new Alert(Alert.AlertType.INFORMATION, "Passbook statement exported to Downloads/KUET_Passbook_" + user.email().split("@")[0] + ".pdf", ButtonType.OK);
-            a.showAndWait();
-        });
+        exportBtn.setTooltip(new Tooltip("Generate KUET Green Mobility transit statement (CSV)"));
+        exportBtn.setOnAction(e -> exportStatementCsv(exportBtn));
 
         row.getChildren().addAll(titleCol, spacer, exportBtn);
         return row;
@@ -345,8 +342,7 @@ public class PassbookView extends VBox {
         disputeItem.setOnAction(e -> {
             RentalRecord sel = tableView.getSelectionModel().getSelectedItem();
             if (sel != null) {
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "Fare audit dispute ticket created for Rental #" + sel.id() + ". Campus transport desk notified.", ButtonType.OK);
-                a.showAndWait();
+                openDisputeDialog(sel);
             }
         });
 
@@ -398,6 +394,8 @@ public class PassbookView extends VBox {
         metaGrid.add(createReceiptMeta("COMMUTE DATE", receiptDateVal), 1, 1);
         metaGrid.add(createReceiptMeta("SETTLED FARE", receiptFareVal), 0, 2);
         metaGrid.add(createReceiptMeta("RENTAL STATUS", receiptStatusVal), 1, 2);
+        metaGrid.add(createReceiptMeta("RENTAL ID", receiptRentalIdVal), 0, 3);
+        metaGrid.add(createReceiptMeta("PAYMENT", "UNPAID (no collection in pilot)"), 1, 3);
 
         ticket.getChildren().addAll(uniHeader, receiptTitle, sep, metaGrid);
         card.getChildren().addAll(title, ticket);
@@ -435,12 +433,78 @@ public class PassbookView extends VBox {
     }
 
     private void updateReceiptDetails(RentalRecord record) {
-        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MMM dd, yyyy · hh:mm a");
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MMM dd, yyyy - hh:mm a");
         receiptCycleVal.setText(record.cycleLabel());
         receiptDateVal.setText(record.startedAt().format(dtf));
-        receiptFareVal.setText(String.format("BDT %.2f (25%% Subsidized)", record.quotedAmountPoisha() / 100.0));
+        receiptFareVal.setText(String.format("BDT %.2f", record.quotedAmountPoisha() / 100.0));
         receiptStatusVal.setText(record.status().name());
         receiptRentalIdVal.setText(record.id());
+    }
+
+    private void openDisputeDialog(RentalRecord record) {
+        if (record.status() != RentalStatus.RETURNED) {
+            Alert a = new Alert(Alert.AlertType.WARNING, "Only RETURNED rentals can be disputed.", ButtonType.OK);
+            a.showAndWait();
+            return;
+        }
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Report Fare Dispute");
+        dialog.setHeaderText("Rental " + record.id());
+        dialog.setContentText("Reason (10-2000 chars):");
+        dialog.showAndWait().ifPresent(reason -> {
+            if (reason.trim().length() < 10) {
+                Alert a = new Alert(Alert.AlertType.WARNING, "Reason must be at least 10 characters.", ButtonType.OK);
+                a.showAndWait();
+                return;
+            }
+            AppExecutor.asyncThenFx(
+                    () -> repo.openDispute(user, record.id(), reason.trim()),
+                    disputeId -> {
+                        Alert a = new Alert(Alert.AlertType.INFORMATION,
+                                "Dispute " + disputeId + " opened. Cycle Office will review.", ButtonType.OK);
+                        a.showAndWait();
+                        loadDataAsync();
+                    },
+                    err -> {
+                        Alert a = new Alert(Alert.AlertType.ERROR, "Dispute failed. Please retry.", ButtonType.OK);
+                        a.showAndWait();
+                    });
+        });
+    }
+
+    private void exportStatementCsv(Button exportBtn) {
+        exportBtn.setDisable(true);
+        AppExecutor.asyncThenFx(
+                () -> {
+                    try {
+                        String safeUser = user.email().split("@")[0].replaceAll("[^a-zA-Z0-9]", "_");
+                        java.nio.file.Path out = java.nio.file.Path.of(
+                                System.getProperty("user.home"), "Downloads", "KUET_Passbook_" + safeUser + ".csv");
+                        StringBuilder sb = new StringBuilder("rental_id,cycle,started_at,minutes,amount_bdt,status\n");
+                        for (RentalRecord r : masterList) {
+                            sb.append(String.format("%s,%s,%s,%d,%.2f,%s%n",
+                                    r.id(), r.cycleLabel().replace(",", " "),
+                                    r.startedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                                    r.requestedMinutes(), r.quotedAmountPoisha() / 100.0, r.status().name()));
+                        }
+                        java.nio.file.Files.writeString(out, sb.toString(),
+                                java.nio.file.StandardOpenOption.CREATE,
+                                java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+                        return out.toString();
+                    } catch (Exception ex) {
+                        throw new RuntimeException("Export failed", ex);
+                    }
+                },
+                path -> {
+                    exportBtn.setDisable(false);
+                    Alert a = new Alert(Alert.AlertType.INFORMATION, "Statement exported to " + path, ButtonType.OK);
+                    a.showAndWait();
+                },
+                err -> {
+                    exportBtn.setDisable(false);
+                    Alert a = new Alert(Alert.AlertType.ERROR, "Export failed. Please retry.", ButtonType.OK);
+                    a.showAndWait();
+                });
     }
 
     private void loadDataAsync() {
@@ -492,7 +556,7 @@ public class PassbookView extends VBox {
                 },
                 error -> {
                     loadingSpinner.setVisible(false);
-                    countLabel.setText("Failed to load commutes: " + error.getMessage());
+                    countLabel.setText("Passbook is offline. Showing cached records.");
                 }
         );
     }
@@ -518,16 +582,16 @@ public class PassbookView extends VBox {
                 if (selectedStatus.contains("CANCELLED") && r.status() != RentalStatus.CANCELLED) return false;
             }
 
-            // DatePicker filter
+            // Date filter: exact calendar day
             if (selectedDate != null) {
                 LocalDate recordDate = r.startedAt().toLocalDate();
-                if (!recordDate.isEqual(selectedDate) && recordDate.isBefore(selectedDate)) {
+                if (!recordDate.isEqual(selectedDate)) {
                     return false;
                 }
             }
 
-            // RadioButton subsidy filter
-            if (subsidizedOnly && r.quotedAmountPoisha() <= 0) {
+            // Subsidized filter: completed RETURNED rides carry the applied subsidy
+            if (subsidizedOnly && r.status() != RentalStatus.RETURNED) {
                 return false;
             }
 

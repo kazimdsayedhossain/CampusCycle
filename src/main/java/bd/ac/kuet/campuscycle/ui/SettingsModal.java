@@ -112,14 +112,11 @@ public class SettingsModal extends StackPane {
         label.getStyleClass().add("metric-label");
 
         ComboBox<String> hubBox = new ComboBox<>();
-        hubBox.getItems().addAll(
-                "KUET Central Library",
-                "Student Welfare Centre",
-                "KUET Main Gate",
-                "Hall Gate",
-                "Academic Building"
-        );
-        hubBox.setValue("KUET Central Library");
+        hubBox.getItems().addAll(bd.ac.kuet.campuscycle.domain.CampusHubs.names());
+        java.util.prefs.Preferences prefs = java.util.prefs.Preferences.userNodeForPackage(SettingsModal.class);
+        String saved = prefs.get("favoriteHub", bd.ac.kuet.campuscycle.domain.CampusHubs.names().get(0));
+        hubBox.setValue(saved);
+        hubBox.setOnAction(e -> prefs.put("favoriteHub", hubBox.getValue()));
         hubBox.setMaxWidth(Double.MAX_VALUE);
         hubBox.getStyleClass().add("filter-chip");
 
@@ -132,12 +129,15 @@ public class SettingsModal extends StackPane {
         Label label = new Label("SMART ALERTS & TELEMETRY");
         label.getStyleClass().add("metric-label");
 
+        java.util.prefs.Preferences prefs = java.util.prefs.Preferences.userNodeForPackage(SettingsModal.class);
         CheckBox returnAlert = new CheckBox("Notify me 10 minutes before rental expiration");
-        returnAlert.setSelected(true);
+        returnAlert.setSelected(prefs.getBoolean("notifyReturn", true));
+        returnAlert.setOnAction(e -> prefs.putBoolean("notifyReturn", returnAlert.isSelected()));
         returnAlert.setStyle("-fx-font-size: 12px;");
 
         CheckBox lowBatteryAlert = new CheckBox("Show real-time station availability updates");
-        lowBatteryAlert.setSelected(true);
+        lowBatteryAlert.setSelected(prefs.getBoolean("notifyStations", true));
+        lowBatteryAlert.setOnAction(e -> prefs.putBoolean("notifyStations", lowBatteryAlert.isSelected()));
         lowBatteryAlert.setStyle("-fx-font-size: 12px;");
 
         box.getChildren().addAll(label, returnAlert, lowBatteryAlert);
@@ -170,6 +170,7 @@ public class SettingsModal extends StackPane {
         Button signOutBtn = new Button("Sign Out");
         signOutBtn.getStyleClass().add("danger-button");
         signOutBtn.setOnAction(e -> {
+            bd.ac.kuet.campuscycle.data.SessionStore.clear();
             onClose.run();
             if (onSignOut != null) onSignOut.run();
         });

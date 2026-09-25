@@ -99,10 +99,7 @@ public final class InMemoryCampusRepository implements CampusRepository {
         }
 
         ZonedDateTime now = ZonedDateTime.now(DHAKA);
-        int basePoisha = 2000; // 20 BDT
-        int extraMinutes = Math.max(0, minutes - 15);
-        int extraBlocks = (int) Math.ceil(extraMinutes / 15.0);
-        int totalPoisha = basePoisha + (extraBlocks * 1000); // +10 BDT per block
+        int totalPoisha = TariffService.quotePoisha(minutes);
 
         RentalRecord rental = new RentalRecord(
                 "R-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
@@ -190,6 +187,78 @@ public final class InMemoryCampusRepository implements CampusRepository {
                 moved++;
             }
         }
+    }
+
+    @Override
+    public synchronized String openDispute(CampusUser renter, String rentalId, String reason) {
+        if (reason == null || reason.trim().length() < 10 || reason.trim().length() > 2000) {
+            throw new IllegalArgumentException("Dispute reason must be 10-2000 characters.");
+        }
+        int rIndex = findRental(rentalId);
+        RentalRecord record = rentals.get(rIndex);
+        if (!record.renterId().equals(renter.id())) {
+            throw new SecurityException("Only the renter can dispute this rental.");
+        }
+        if (record.status() != RentalStatus.RETURNED) {
+            throw new IllegalStateException("Only RETURNED rentals can be disputed.");
+        }
+        String disputeId = "D-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        rentals.set(rIndex, new RentalRecord(
+                record.id(), record.cycleId(), record.cycleLabel(), record.renterId(),
+                record.requestedMinutes(), record.quotedAmountPoisha(), RentalStatus.DISPUTED,
+                record.startedAt(), record.dueAt(), record.returnedAt()));
+        disputes.add(0, new DisputeItem(disputeId, rentalId, reason.trim(), "OPEN"));
+        return disputeId;
+    }
+
+    @Override
+    public synchronized List<DisputeItem> disputeQueue(CampusUser admin) {
+        if (admin.role() != Role.ADMIN) {
+            throw new SecurityException("Admin authorization required.");
+        }
+        return List.copyOf(disputes);
+    }
+
+    private final List<SupportConversation> conversations = new ArrayList<>();
+    private final java.util.Map<String, List<SupportMessage>> threads = new java.util.HashMap<>();
+    private final List<DisputeItem> disputes = new ArrayList<>();
+
+    @Override
+    public synchronized String createSupportConversation(CampusUser student, String subject, String message) {
+        if (subject == null || subject.trim().length() < 3 || subject.trim().length() > 160) {
+            throw new IllegalArgumentException("Subject must be 3-160 characters.");
+        }
+        if (message == null || message.trim().isEmpty() || message.trim().length() > 2000) {
+            throw new IllegalArgumentException("Message must be 1-2000 characters.");
+        }
+        String id = "S-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        ZonedDateTime now = ZonedDateTime.now(DHAKA);
+        conversations.add(0, new SupportConversation(id, subject.trim(), "OPEN", "", now));
+        threads.put(id, new ArrayList<>(List.of(
+                new SupportMessage("M-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                        student.displayName(), student.role().name(), message.trim(), now))));
+        return id;
+    }
+
+    @Override
+    public synchronized List<SupportConversation> supportConversations(CampusUser user) {
+        return List.copyOf(conversations);
+    }
+
+    @Override
+    public synchronized List<SupportMessage> supportMessages(CampusUser user, String conversationId) {
+        return List.copyOf(threads.getOrDefault(conversationId, List.of()));
+    }
+
+    @Override
+    public synchronized void postSupportMessage(CampusUser user, String conversationId, String body) {
+        if (body == null || body.trim().isEmpty() || body.trim().length() > 2000) {
+            throw new IllegalArgumentException("Message must be 1-2000 characters.");
+        }
+        List<SupportMessage> thread = threads.get(conversationId);
+        if (thread == null) throw new IllegalArgumentException("Conversation not found.");
+        thread.add(new SupportMessage("M-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                user.displayName(), user.role().name(), body.trim(), ZonedDateTime.now(DHAKA)));
     }
 
     private int findCycle(String id) {

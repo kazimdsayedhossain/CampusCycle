@@ -33,9 +33,8 @@ public class ReservationModal extends StackPane {
     private final Label discountLabel = new Label();
     private final Label totalLabel = new Label();
 
-    private final RadioButton rbSubsidy = new RadioButton("KUET Campus Subsidy (25% Auto-Deduction)");
-    private final RadioButton rbBkash = new RadioButton("bKash / Nagad Instant Mobile Banking");
-    private final RadioButton rbSmartCard = new RadioButton("KUET Smart ID NFC Card Balance");
+    private final RadioButton rbSubsidy = new RadioButton("KUET Student Subsidy (25% statement credit)");
+    private final Label unpaidNote = new Label("Payment stays UNPAID until a Bangladesh provider is connected. No charge is collected in this build.");
 
     public ReservationModal(CycleItem cycle,
                             CampusUser user,
@@ -115,7 +114,7 @@ public class ReservationModal extends StackPane {
 
         top.getChildren().addAll(name, spacer, typeBadge);
 
-        Label station = new Label("📍 Dock: " + cycle.pickupPoint() + " • Verified KUET Hardware");
+        Label station = new Label("Dock: " + cycle.pickupPoint() + " - Verified KUET Hardware");
         station.setStyle("-fx-font-size: 11.5px; -fx-opacity: 0.75;");
 
         box.getChildren().addAll(top, station);
@@ -165,22 +164,17 @@ public class ReservationModal extends StackPane {
     private VBox createPaymentMethodSection() {
         VBox box = new VBox(8);
 
-        Label label = new Label("PAYMENT & SUBSIDY CHANNEL");
+        Label label = new Label("PAYMENT STATUS");
         label.getStyleClass().add("metric-label");
 
-        ToggleGroup tg = new ToggleGroup();
-        rbSubsidy.setToggleGroup(tg);
-        rbBkash.setToggleGroup(tg);
-        rbSmartCard.setToggleGroup(tg);
         rbSubsidy.setSelected(true);
-
+        rbSubsidy.setDisable(true);
         rbSubsidy.getStyleClass().add("radio-button");
-        rbBkash.getStyleClass().add("radio-button");
-        rbSmartCard.getStyleClass().add("radio-button");
 
-        tg.selectedToggleProperty().addListener((obs, oldVal, newVal) -> updateTariffCalculation());
+        unpaidNote.setWrapText(true);
+        unpaidNote.setStyle("-fx-font-size: 11px; -fx-opacity: 0.7;");
 
-        VBox radioBox = new VBox(6, rbSubsidy, rbBkash, rbSmartCard);
+        VBox radioBox = new VBox(6, rbSubsidy, unpaidNote);
         radioBox.getStyleClass().add("sub-panel");
         radioBox.setPadding(new Insets(10, 14, 10, 14));
 
@@ -224,13 +218,10 @@ public class ReservationModal extends StackPane {
         LocalTime due = LocalTime.now().plusMinutes(selectedMinutes);
         returnLabel.setText("Due by " + due.format(DateTimeFormatter.ofPattern("hh:mm a")));
 
-        int basePoisha = 2000; // 20 BDT
-        int extraMinutes = Math.max(0, selectedMinutes - 15);
-        int extraBlocks = (int) Math.ceil(extraMinutes / 15.0);
-        int subtotalPoisha = basePoisha + (extraBlocks * 1000);
+        int subtotalPoisha = bd.ac.kuet.campuscycle.domain.TariffService.quotePoisha(selectedMinutes);
 
         boolean applySubsidy = rbSubsidy.isSelected() && (user.role() == Role.STUDENT);
-        int discountPoisha = applySubsidy ? (int) (subtotalPoisha * 0.25) : 0;
+        int discountPoisha = bd.ac.kuet.campuscycle.domain.TariffService.subsidyPoisha(subtotalPoisha, applySubsidy);
         int netPoisha = subtotalPoisha - discountPoisha;
 
         tariffLabel.setText(String.format("BDT %.2f", subtotalPoisha / 100.0));

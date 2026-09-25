@@ -18,9 +18,37 @@ import javafx.stage.Stage;
 
 public final class CampusCycleApplication extends Application {
 
-    private CampusRepository repository = new bd.ac.kuet.campuscycle.data.SupabaseCampusRepository();
+    private CampusRepository repository = new bd.ac.kuet.campuscycle.data.InMemoryCampusRepository();
     private final CampusUser student = new CampusUser("3d1e3d69-ffc6-494f-a42c-26eeb258b581", "Arafat Rahman", "arafat@kuet.ac.bd", Role.STUDENT);
     private final CampusUser admin = new CampusUser("56d6f9dc-0ca7-4b49-9f9e-3c48a1b2089a", "KUET Cycle Office", "cycleoffice@kuet.ac.bd", Role.ADMIN);
+    private BingMapView activeMapView;
+    private DashboardView activeDashboard;
+    private FleetCatalogView activeFleet;
+    private ActiveJourneyView activeJourney;
+    private CampusMapView activeCampusMapView;
+
+    private void disposeActiveViews() {
+        if (activeMapView != null) {
+            activeMapView.dispose();
+            activeMapView = null;
+        }
+        if (activeCampusMapView != null) {
+            activeCampusMapView.dispose();
+            activeCampusMapView = null;
+        }
+        if (activeDashboard != null) {
+            activeDashboard.dispose();
+            activeDashboard = null;
+        }
+        if (activeFleet != null) {
+            activeFleet.dispose();
+            activeFleet = null;
+        }
+        if (activeJourney != null) {
+            activeJourney.dispose();
+            activeJourney = null;
+        }
+    }
 
     private Stage stage;
     private Scene scene;
@@ -62,16 +90,16 @@ public final class CampusCycleApplication extends Application {
     }
 
     private void showLogin() {
+        disposeActiveViews();
+        bd.ac.kuet.campuscycle.data.SessionStore.clear();
+        if (activeMapView != null) {
+            activeMapView.dispose();
+            activeMapView = null;
+        }
         LoginView loginView = new LoginView(
                 this::openWorkspace,
-                () -> {
-                    repository = new bd.ac.kuet.campuscycle.data.SupabaseCampusRepository();
-                    openWorkspace(student);
-                },
-                () -> {
-                    repository = new bd.ac.kuet.campuscycle.data.SupabaseCampusRepository();
-                    openWorkspace(admin);
-                }
+                () -> openWorkspace(student),
+                () -> openWorkspace(admin)
         );
 
         rootStack = new StackPane(loginView);
@@ -80,14 +108,17 @@ public final class CampusCycleApplication extends Application {
 
     private void openWorkspace(CampusUser user) {
         this.currentUser = user;
+        if (bd.ac.kuet.campuscycle.data.DatabaseConnection.isAvailable()) {
+            repository = new bd.ac.kuet.campuscycle.data.SupabaseCampusRepository();
+        } else {
+            repository = new bd.ac.kuet.campuscycle.data.InMemoryCampusRepository();
+        }
 
         mainLayout = new BorderPane();
 
-        boolean hasActive = repository.activeRental(currentUser) != null;
-
         appHeader = new AppHeader(
                 currentUser,
-                hasActive,
+                false,
                 this::navigateTo,
                 this::openSettings,
                 () -> openWorkspace(currentUser.role() == Role.ADMIN ? student : admin),
@@ -100,6 +131,20 @@ public final class CampusCycleApplication extends Application {
         rootStack = new StackPane(mainLayout);
         setupScene(rootStack, 1240, 820);
         navigateTo("Dashboard");
+        // Resolve active ride off the FX thread to avoid startup freeze.
+        bd.ac.kuet.campuscycle.service.AppExecutor.asyncThenFx(
+                () -> {
+                    try {
+                        return repository.activeRental(currentUser) != null;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                },
+                hasActive -> {
+                    if (appHeader != null) appHeader.setHasActiveRide(hasActive);
+                },
+                err -> {
+                });
     }
 
     public void navigateTo(String page) {
@@ -107,11 +152,12 @@ public final class CampusCycleApplication extends Application {
         if (appHeader != null) {
             appHeader.setActivePage(page);
         }
+        disposeActiveViews();
 
         Node content;
         switch (page) {
             case "Fleet Catalog" -> {
-                content = new FleetCatalogView(
+                FleetCatalogView fleet = new FleetCatalogView(
                         currentUser,
                         repository,
                         this::openReservationModal,
@@ -120,48 +166,68 @@ public final class CampusCycleApplication extends Application {
                         },
                         this::openCycleRegistrationModal
                 );
+                activeFleet = fleet;
+                content = fleet;
             }
             case "Campus Map" -> {
                 VBox mapWrap = new VBox(16);
                 mapWrap.setAlignment(Pos.TOP_CENTER);
-                mapWrap.setPadding(new Insets(24, 36, 36, 36));
+                mapWrap.setPadding(new Insets(16, 24, 24, 24));
+                mapWrap.setMaxWidth(1220);
 
-                HBox mapHeader = new HBox(16);
-                mapHeader.setAlignment(Pos.CENTER_LEFT);
-                mapHeader.setMaxWidth(1160);
+                Label mapLoading = new Label("Initializing KUET & Khulna Navigation Radar...");
+                mapLoading.setStyle("-fx-font-size: 13px; -fx-opacity: 0.7;");
+                mapWrap.getChildren().add(mapLoading);
+                content = mapWrap;
 
-                VBox titleCol = new VBox(3);
-                Label title = new Label("KUET & Khulna City Navigation Radar");
-                title.setStyle("-fx-font-size: 20px; -fx-font-weight: 800;");
-                Label sub = new Label("Live satellite & street telemetry covering KUET campus quad-docks and Khulna metropolitan free-roaming zones");
-                sub.setStyle("-fx-font-size: 12.5px; -fx-opacity: 0.75;");
-                titleCol.getChildren().addAll(title, sub);
-
-                mapHeader.getChildren().add(titleCol);
-
-                BingMapView fullMap = new BingMapView(
-                        repository.catalog(currentUser),
-                        hubName -> navigateTo("Fleet Catalog"),
-                        locationName -> {
-                            if (appHeader != null) appHeader.setLocationDisplay(locationName);
+                CampusUser mapUser = currentUser;
+                bd.ac.kuet.campuscycle.service.AppExecutor.asyncThenFx(
+                        () -> {
+                            try {
+                                return repository.catalog(mapUser);
+                            } catch (Exception e) {
+                                return java.util.List.<CycleItem>of();
+                            }
+                        },
+                        cycles -> {
+                            CampusMapView campusMap = new CampusMapView(
+                                    mapUser,
+                                    cycles,
+                                    this::navigateTo,
+                                    locationName -> {
+                                        if (appHeader != null) appHeader.setLocationDisplay(locationName);
+                                    }
+                            );
+                            activeCampusMapView = campusMap;
+                            mapWrap.getChildren().setAll(campusMap);
+                        },
+                        err -> {
+                            CampusMapView fallback = new CampusMapView(
+                                    mapUser,
+                                    java.util.List.of(),
+                                    this::navigateTo,
+                                    locationName -> {}
+                            );
+                            activeCampusMapView = fallback;
+                            mapWrap.getChildren().setAll(fallback);
                         }
                 );
-                fullMap.setPrefHeight(620);
-                fullMap.setMaxWidth(1160);
-
-                mapWrap.getChildren().addAll(mapHeader, fullMap);
-                content = mapWrap;
             }
             case "Active Journey" -> {
-                content = new ActiveJourneyView(
+                ActiveJourneyView journey = new ActiveJourneyView(
                         currentUser,
                         repository,
                         this::navigateTo,
                         () -> openWorkspace(currentUser)
                 );
+                activeJourney = journey;
+                content = journey;
             }
             case "Passbook" -> {
                 content = new PassbookView(currentUser, repository);
+            }
+            case "Support" -> {
+                content = new SupportView(currentUser, repository);
             }
             case "Admin Operations" -> {
                 content = new AdminOperationsView(
@@ -171,7 +237,7 @@ public final class CampusCycleApplication extends Application {
                 );
             }
             default -> { // "Dashboard"
-                content = new DashboardView(
+                DashboardView dash = new DashboardView(
                         currentUser,
                         repository,
                         this::navigateTo,
@@ -180,6 +246,8 @@ public final class CampusCycleApplication extends Application {
                             if (appHeader != null) appHeader.setLocationDisplay(locationName);
                         }
                 );
+                activeDashboard = dash;
+                content = dash;
             }
         }
 

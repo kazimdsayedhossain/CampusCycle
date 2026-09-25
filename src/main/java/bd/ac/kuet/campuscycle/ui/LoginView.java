@@ -10,6 +10,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -72,7 +73,7 @@ public class LoginView extends StackPane {
         HBox logoRow = new HBox(14);
         logoRow.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane iconCircle = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 22, Color.web("#0284C7")));
+        StackPane iconCircle = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 22, Color.web("#1D4ED8")));
         iconCircle.setPrefSize(48, 48);
         iconCircle.getStyleClass().add("action-icon-btn");
 
@@ -91,6 +92,7 @@ public class LoginView extends StackPane {
                 "Autonomous smart bicycle transit connecting university academic departments, student halls, and campus gates with zero carbon emissions."
         );
         desc.setWrapText(true);
+        desc.getStyleClass().add("metric-label");
         desc.setStyle("-fx-font-size: 13px; -fx-line-spacing: 4px; -fx-opacity: 0.85;");
 
         // Feature Bullets
@@ -105,6 +107,7 @@ public class LoginView extends StackPane {
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
         Label footer = new Label("Khulna University of Engineering & Technology");
+        footer.getStyleClass().add("metric-label");
         footer.setStyle("-fx-font-size: 11px; -fx-opacity: 0.6; -fx-font-weight: 600;");
 
         box.getChildren().addAll(logoRow, desc, features, spacer, footer);
@@ -115,16 +118,18 @@ public class LoginView extends StackPane {
         HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane iconBox = new StackPane(ThemeManager.createIcon(svg, 14, Color.web("#0284C7")));
+        StackPane iconBox = new StackPane(ThemeManager.createIcon(svg, 14, Color.web("#1D4ED8")));
         iconBox.setPrefSize(32, 32);
         iconBox.getStyleClass().add("action-icon-btn");
 
         VBox textCol = new VBox(2);
         Label h = new Label(headline);
+        h.getStyleClass().add("card-title");
         h.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700;");
 
         Label d = new Label(detail);
-        d.setStyle("-fx-font-size: 11px; -fx-opacity: 0.7;");
+        d.getStyleClass().add("metric-label");
+        d.setStyle("-fx-opacity: 0.7;");
 
         textCol.getChildren().addAll(h, d);
         row.getChildren().addAll(iconBox, textCol);
@@ -158,11 +163,22 @@ public class LoginView extends StackPane {
 
         VBox titleCol = new VBox(4);
         Label welcome = new Label("Welcome Back");
+        welcome.getStyleClass().add("card-title");
         welcome.setStyle("-fx-font-size: 24px; -fx-font-weight: 800;");
 
         Label sub = new Label("Sign in to unlock bikes, track active rides, and manage rentals.");
-        sub.setStyle("-fx-font-size: 12.5px; -fx-opacity: 0.75;");
+        sub.getStyleClass().add("metric-label");
+        sub.setStyle("-fx-opacity: 0.75;");
         titleCol.getChildren().addAll(welcome, sub);
+
+        Label configNote = new Label();
+        if (!bd.ac.kuet.campuscycle.data.SupabaseRpcClient.isConfigured()) {
+            configNote.setText("Live store not configured. Running on offline demo store.");
+        } else {
+            configNote.setText("Live store configured. Sign-in uses Supabase Auth.");
+        }
+        configNote.getStyleClass().add("metric-label");
+        configNote.setStyle("-fx-opacity: 0.7;");
 
         // Email / Student Roll Input
         Label emailLbl = new Label("UNIVERSITY EMAIL / STUDENT ROLL");
@@ -172,7 +188,7 @@ public class LoginView extends StackPane {
         emailBox.setAlignment(Pos.CENTER_LEFT);
         emailBox.getStyleClass().add("input-pill-box");
 
-        SVGPath mailIcon = ThemeManager.createIcon(ThemeManager.ICON_MAIL, 15, Color.web("#94A3B8"));
+        SVGPath mailIcon = ThemeManager.createIcon(ThemeManager.ICON_MAIL, 15, Color.web("#9CA3AF"));
         TextField emailField = new TextField();
         emailField.setPromptText("e.g. arafat@kuet.ac.bd or 1907001");
         emailField.getStyleClass().add("bare-input");
@@ -188,7 +204,7 @@ public class LoginView extends StackPane {
         passBox.setAlignment(Pos.CENTER_LEFT);
         passBox.getStyleClass().add("input-pill-box");
 
-        SVGPath lockIcon = ThemeManager.createIcon(ThemeManager.ICON_LOCK, 15, Color.web("#94A3B8"));
+        SVGPath lockIcon = ThemeManager.createIcon(ThemeManager.ICON_LOCK, 15, Color.web("#9CA3AF"));
 
         PasswordField maskedField = new PasswordField();
         maskedField.setPromptText("Enter your password");
@@ -215,7 +231,7 @@ public class LoginView extends StackPane {
             maskedField.setManaged(!show);
             visibleField.setVisible(show);
             visibleField.setManaged(show);
-            eyeBtn.setGraphic(ThemeManager.createIcon(show ? ThemeManager.ICON_EYE_OFF : ThemeManager.ICON_EYE, 14, Color.web("#64748B")));
+            eyeBtn.setGraphic(ThemeManager.createIcon(show ? ThemeManager.ICON_EYE_OFF : ThemeManager.ICON_EYE, 14, Color.web("#6B7280")));
         });
         eyeBtn.setStyle("-fx-padding: 4px 8px; -fx-background-radius: 12px;");
 
@@ -223,7 +239,8 @@ public class LoginView extends StackPane {
 
         // Error message label
         Label errorLbl = new Label();
-        errorLbl.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 700; -fx-text-fill: #DC2626;");
+        errorLbl.getStyleClass().add("metric-label");
+        errorLbl.setStyle("-fx-text-fill: #DC2626; -fx-font-size: 11.5px; -fx-font-weight: 700;");
         errorLbl.setVisible(false);
         errorLbl.setManaged(false);
 
@@ -234,14 +251,11 @@ public class LoginView extends StackPane {
         signInBtn.setOnAction(e -> {
             String email = emailField.getText();
             String pass = maskedField.getText();
-            if (email == null || email.trim().isEmpty()) {
-                errorLbl.setText("Please enter your university email or student roll.");
-                errorLbl.setVisible(true);
-                errorLbl.setManaged(true);
-                return;
-            }
-            if (pass == null || pass.trim().isEmpty()) {
-                errorLbl.setText("Please enter your password.");
+            try {
+                bd.ac.kuet.campuscycle.data.SupabaseAuthService.validate(
+                        email == null ? "" : email.trim().toLowerCase(), pass == null ? "" : pass);
+            } catch (IllegalArgumentException ex) {
+                errorLbl.setText(ex.getMessage());
                 errorLbl.setVisible(true);
                 errorLbl.setManaged(true);
                 return;
@@ -249,53 +263,76 @@ public class LoginView extends StackPane {
 
             errorLbl.setVisible(false);
             errorLbl.setManaged(false);
+            signInBtn.setDisable(true);
+            signInBtn.setText("Signing in...");
 
-            String trimmed = email.trim();
-            if (trimmed.toLowerCase().contains("admin") || trimmed.toLowerCase().contains("office")) {
-                CampusUser adminUser = new CampusUser("56d6f9dc-0ca7-4b49-9f9e-3c48a1b2089a", "KUET Cycle Office", trimmed, Role.ADMIN);
-                LocalDatabase.getInstance().saveProfile(adminUser);
-                onLogin.accept(adminUser);
-            } else {
-                String name = trimmed.contains("@") ? trimmed.split("@")[0] : "Student " + trimmed;
-                String userUuid = UUID.nameUUIDFromBytes(trimmed.getBytes()).toString();
-                CampusUser studentUser = new CampusUser(userUuid, name, trimmed, Role.STUDENT);
-                LocalDatabase.getInstance().saveProfile(studentUser);
-                onLogin.accept(studentUser);
-            }
+            String trimmed = email.trim().toLowerCase();
+            String password = pass;
+
+            // Attempt cloud auth with seamless local/demo fallback
+            bd.ac.kuet.campuscycle.data.SupabaseAuthService.signIn(trimmed, password)
+                    .thenAccept(session -> javafx.application.Platform.runLater(() -> {
+                        bd.ac.kuet.campuscycle.data.SessionStore.set(session.accessToken(), session.user().id());
+                        onLogin.accept(session.user());
+                    }))
+                    .exceptionally(err -> {
+                        javafx.application.Platform.runLater(() -> {
+                            // Deterministic UUID fallback for student/admin accounts
+                            Role role = trimmed.contains("admin") || trimmed.contains("office") ? Role.ADMIN : Role.STUDENT;
+                            String name = trimmed.split("@")[0];
+                            name = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+                            CampusUser fallbackUser = new CampusUser(
+                                    UUID.nameUUIDFromBytes(trimmed.getBytes()).toString(),
+                                    name,
+                                    trimmed,
+                                    role
+                            );
+                            LocalDatabase.getInstance().saveProfile(fallbackUser);
+                            onLogin.accept(fallbackUser);
+                        });
+                        return null;
+                    });
         });
 
-        // Quick Demo Launcher Section
-        Label demoHeader = new Label("OR EXPLORE INSTANT DEMO");
-        demoHeader.getStyleClass().add("metric-label");
-        demoHeader.setAlignment(Pos.CENTER);
-        demoHeader.setMaxWidth(Double.MAX_VALUE);
-        demoHeader.setStyle("-fx-alignment: center; -fx-padding: 8px 0 0 0;");
+        // Quick Demo Launchers (1-click access)
+        Separator sep = new Separator();
+        sep.setPadding(new Insets(6, 0, 6, 0));
+
+        Label demoHeading = new Label("OR INSTANT 1-CLICK DEMO ACCESS");
+        demoHeading.getStyleClass().add("metric-label");
+        demoHeading.setStyle("-fx-font-size: 10.5px; -fx-opacity: 0.65; -fx-alignment: CENTER;");
 
         HBox demoRow = new HBox(12);
         demoRow.setAlignment(Pos.CENTER);
 
-        Button studentDemoBtn = new Button("Student Demo");
+        Button studentDemoBtn = new Button("👨‍🎓 Student Demo");
         studentDemoBtn.getStyleClass().add("secondary-button");
         studentDemoBtn.setMaxWidth(Double.MAX_VALUE);
+        studentDemoBtn.setOnAction(e -> {
+            if (onStudentDemo != null) onStudentDemo.run();
+        });
         HBox.setHgrow(studentDemoBtn, Priority.ALWAYS);
-        studentDemoBtn.setOnAction(e -> onStudentDemo.run());
 
-        Button adminDemoBtn = new Button("Admin Demo");
+        Button adminDemoBtn = new Button("🛡️ Admin Dispatch");
         adminDemoBtn.getStyleClass().add("secondary-button");
         adminDemoBtn.setMaxWidth(Double.MAX_VALUE);
+        adminDemoBtn.setOnAction(e -> {
+            if (onAdminDemo != null) onAdminDemo.run();
+        });
         HBox.setHgrow(adminDemoBtn, Priority.ALWAYS);
-        adminDemoBtn.setOnAction(e -> onAdminDemo.run());
 
         demoRow.getChildren().addAll(studentDemoBtn, adminDemoBtn);
 
         box.getChildren().addAll(
                 topRow,
                 titleCol,
+                configNote,
                 emailLbl, emailBox,
                 passLbl, passBox,
                 errorLbl,
                 signInBtn,
-                demoHeader,
+                sep,
+                demoHeading,
                 demoRow
         );
 

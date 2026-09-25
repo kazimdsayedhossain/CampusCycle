@@ -31,7 +31,7 @@ public class AppHeader extends HBox {
     private final HBox navCapsule = new HBox(4);
     private final List<Button> navButtons = new ArrayList<>();
     private String activePage = "Dashboard";
-    private final Button locationBtn = new Button("📍 Central Field");
+    private final Button locationBtn = new Button("Central Field");
     private final Button themeToggleBtn = new Button();
     private final Circle activeRideDot = new Circle(4, Color.web("#10B981"));
 
@@ -112,6 +112,7 @@ public class AppHeader extends HBox {
         }
 
         addNavPill("Passbook", null);
+        addNavPill("Support", null);
 
         if (user.role() == Role.ADMIN) {
             addNavPill("Admin Operations", null);
@@ -191,9 +192,7 @@ public class AppHeader extends HBox {
         userMeta.getChildren().addAll(userName, userRole);
 
         userChip.getChildren().addAll(userAvatar, userMeta);
-        userChip.setOnMouseClicked(e -> {
-            if (onToggleRole != null) onToggleRole.run();
-        });
+        userChip.setOnMouseClicked(null);
         ThemeManager.applySpringHover(userChip);
 
         right.getChildren().addAll(locationBtn, themeToggleBtn, settingsBtn, userChip);
@@ -210,7 +209,7 @@ public class AppHeader extends HBox {
     }
 
     public void setLocationDisplay(String locationName) {
-        locationBtn.setText("📍 " + locationName);
+        locationBtn.setText(locationName);
     }
 
     public void setHasActiveRide(boolean hasActiveRide) {

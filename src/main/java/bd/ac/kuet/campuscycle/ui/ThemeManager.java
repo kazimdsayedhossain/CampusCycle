@@ -1,7 +1,6 @@
 package bd.ac.kuet.campuscycle.ui;
 
 import javafx.animation.FadeTransition;
-import javafx.animation.ScaleTransition;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.Node;
@@ -114,23 +113,14 @@ public final class ThemeManager {
     }
 
     public static void applySpringHover(Node node) {
-        node.setOnMouseEntered(e -> {
-            ScaleTransition st = new ScaleTransition(Duration.millis(120), node);
-            st.setToX(1.025);
-            st.setToY(1.025);
-            st.play();
-        });
-        node.setOnMouseExited(e -> {
-            ScaleTransition st = new ScaleTransition(Duration.millis(120), node);
-            st.setToX(1.0);
-            st.setToY(1.0);
-            st.play();
-        });
+        // Hover animation handled in CSS (:hover) to avoid per-event Transition churn.
+        node.setOnMouseEntered(null);
+        node.setOnMouseExited(null);
     }
 
     public static void applyFadeIn(Node node) {
         node.setOpacity(0.0);
-        FadeTransition ft = new FadeTransition(Duration.millis(200), node);
+        FadeTransition ft = new FadeTransition(Duration.millis(120), node);
         ft.setFromValue(0.0);
         ft.setToValue(1.0);
         ft.play();

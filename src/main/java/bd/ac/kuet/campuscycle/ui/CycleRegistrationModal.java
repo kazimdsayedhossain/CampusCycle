@@ -1,6 +1,5 @@
 package bd.ac.kuet.campuscycle.ui;
 
-import bd.ac.kuet.campuscycle.data.DatabaseConnection;
 import bd.ac.kuet.campuscycle.data.EventBus;
 import bd.ac.kuet.campuscycle.data.LocalDatabase;
 import bd.ac.kuet.campuscycle.domain.*;
@@ -13,8 +12,6 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.util.UUID;
 
 /**
@@ -108,21 +105,14 @@ public class CycleRegistrationModal extends StackPane {
 
         Label l4 = new Label("PICKUP / RETURN HUB");
         l4.getStyleClass().add("metric-label");
-        pickupCombo.getItems().setAll(
-                "KUET Central Library",
-                "Student Welfare Centre",
-                "KUET Main Gate",
-                "Hall Gate",
-                "Academic Building"
-        );
-        pickupCombo.setValue("KUET Central Library");
+        pickupCombo.getItems().setAll(bd.ac.kuet.campuscycle.domain.CampusHubs.names());
+        pickupCombo.setValue(bd.ac.kuet.campuscycle.domain.CampusHubs.names().get(0));
         pickupCombo.setMaxWidth(Double.MAX_VALUE);
         pickupCombo.getStyleClass().add("modern-input");
 
         Label l5 = new Label("EMERGENCY / OWNER CONTACT PHONE");
         l5.getStyleClass().add("metric-label");
         phoneField.setPromptText("+8801700000000");
-        phoneField.setText("+8801711223344");
         phoneField.getStyleClass().add("modern-input");
 
         Label l6 = new Label("DESCRIPTION / LOCK NOTES");
@@ -164,14 +154,19 @@ public class CycleRegistrationModal extends StackPane {
 
     private void handleRegistration() {
         String label = labelField.getText();
-        if (label == null || label.trim().isEmpty()) {
-            showError("Please provide a cycle model or label.");
+        if (label == null || label.trim().length() < 2 || label.trim().length() > 100) {
+            showError("Cycle label must be 2-100 characters.");
             return;
         }
 
         String phone = phoneField.getText();
-        if (phone == null || phone.trim().isEmpty()) {
-            showError("Please enter owner contact phone.");
+        if (phone == null || !phone.trim().matches("^\\+?8801[3-9][0-9]{8}$")) {
+            showError("Enter a valid BD mobile (e.g. +8801712345678).");
+            return;
+        }
+        String desc = descField.getText() == null ? "" : descField.getText().trim();
+        if (desc.length() > 2000) {
+            showError("Description must be under 2000 characters.");
             return;
         }
 
@@ -187,14 +182,10 @@ public class CycleRegistrationModal extends StackPane {
 
         String cycleIdStr = UUID.randomUUID().toString();
         String hub = pickupCombo.getValue();
-        double lat = 22.9009;
-        double lng = 89.5016;
-
-        if (hub.contains("Library")) { lat = 22.9009; lng = 89.5016; }
-        else if (hub.contains("Welfare")) { lat = 22.9017; lng = 89.5030; }
-        else if (hub.contains("Main Gate")) { lat = 22.8987; lng = 89.4981; }
-        else if (hub.contains("Hall")) { lat = 22.9045; lng = 89.5060; }
-        else if (hub.contains("Academic")) { lat = 22.9015; lng = 89.5010; }
+        bd.ac.kuet.campuscycle.domain.CampusHubs.Hub hubRef =
+                bd.ac.kuet.campuscycle.domain.CampusHubs.byName(hub);
+        double lat = hubRef.lat();
+        double lng = hubRef.lng();
 
         final double finalLat = lat;
         final double finalLng = lng;
@@ -211,42 +202,15 @@ public class CycleRegistrationModal extends StackPane {
                 finalLat,
                 finalLng,
                 descField.getText() != null ? descField.getText().trim() : "",
-                ReviewStatus.APPROVED,
+                ReviewStatus.PENDING_REVIEW,
                 AvailabilityStatus.AVAILABLE
         );
 
-        // Run background database persistence
+        // Run background database persistence (local only; server insert goes via register_cycle RPC)
         AppExecutor.asyncThenFx(
                 () -> {
                     // 1. Save in local SQLite database
                     LocalDatabase.getInstance().saveCycle(newCycle);
-
-                    // 2. Save in remote Supabase PostgreSQL
-                    if (DatabaseConnection.isAvailable()) {
-                        try (Connection conn = DatabaseConnection.getConnection();
-                             PreparedStatement pstmt = conn.prepareStatement("""
-                                 INSERT INTO public.cycles
-                                 (id, cycle_id, owner_id, owner_name, owner_phone, label, cycle_type, physical_condition, pickup_point, latitude, longitude, description, review_status, availability_status, is_available, is_verified)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPROVED', 'AVAILABLE', true, true)
-                                 ON CONFLICT (cycle_id) DO NOTHING;
-                             """)) {
-                            pstmt.setObject(1, UUID.fromString(cycleIdStr));
-                            pstmt.setString(2, "CC-" + cycleIdStr.substring(0, 8));
-                            pstmt.setObject(3, UUID.fromString(user.id()));
-                            pstmt.setString(4, user.displayName());
-                            pstmt.setString(5, phone.trim());
-                            pstmt.setString(6, label.trim());
-                            pstmt.setString(7, typeCombo.getValue().name());
-                            pstmt.setString(8, finalCondition.name());
-                            pstmt.setString(9, hub);
-                            pstmt.setDouble(10, finalLat);
-                            pstmt.setDouble(11, finalLng);
-                            pstmt.setString(12, descField.getText());
-                            pstmt.executeUpdate();
-                        } catch (Exception e) {
-                            System.err.println("Supabase cycle insert: " + e.getMessage());
-                        }
-                    }
                     return newCycle;
                 },
                 created -> {

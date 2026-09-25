@@ -34,10 +34,10 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
         List<CycleItem> items = new ArrayList<>();
         String sql = """
-                SELECT c.id, c.owner_id, COALESCE(c.owner_name, 'KUET Student') AS owner_name,
+                SELECT c.id, c.owner_id, COALESCE(p.display_name, 'KUET Member') AS owner_name,
                        c.label, c.cycle_type, c.physical_condition, c.pickup_point,
                        c.latitude, c.longitude, c.description, c.review_status, c.availability_status
-                FROM public.cycles c
+                FROM public.cycles c LEFT JOIN public.profiles p ON p.id = c.owner_id
                 WHERE c.review_status = 'APPROVED' AND c.availability_status = 'AVAILABLE'
                 ORDER BY c.label;
                 """;
@@ -62,7 +62,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
             return items;
 
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to load live catalog from PostgreSQL, using fallback: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Failed to load live catalog; using local fallback. [CATALOG_FALLBACK]");
             return fallback.catalog(user);
         }
     }
@@ -75,10 +75,10 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
         List<CycleItem> items = new ArrayList<>();
         String sql = """
-                SELECT c.id, c.owner_id, COALESCE(c.owner_name, 'KUET Student') AS owner_name,
+                SELECT c.id, c.owner_id, COALESCE(p.display_name, 'KUET Member') AS owner_name,
                        c.label, c.cycle_type, c.physical_condition, c.pickup_point,
                        c.latitude, c.longitude, c.description, c.review_status, c.availability_status
-                FROM public.cycles c
+                FROM public.cycles c LEFT JOIN public.profiles p ON p.id = c.owner_id
                 WHERE c.review_status = 'PENDING_REVIEW'
                 ORDER BY c.updated_at DESC;
                 """;
@@ -97,7 +97,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
             return items;
 
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to load pending cycles from PostgreSQL, using fallback: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Failed to load pending cycles; using local fallback. [PENDING_FALLBACK]");
             return fallback.pendingCycles();
         }
     }
@@ -111,7 +111,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
         List<RentalRecord> records = new ArrayList<>();
         String sql = """
                 SELECT r.id, r.cycle_id, c.label, r.renter_id, r.requested_minutes,
-                       r.quoted_amount_poisha, r.state, r.started_at, r.due_at, r.returned_at
+                       r.quoted_amount_poisha, r.state, r.started_at, r.returned_at
                 FROM public.rentals r
                 JOIN public.cycles c ON r.cycle_id = c.id
                 WHERE r.renter_id = ?
@@ -130,7 +130,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
             return records.isEmpty() ? fallback.rentals(user) : records;
 
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to load rentals from PostgreSQL, using fallback: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Failed to load rentals; using local fallback. [RENTALS_FALLBACK]");
             return fallback.rentals(user);
         }
     }
@@ -143,7 +143,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
         String sql = """
                 SELECT r.id, r.cycle_id, c.label, r.renter_id, r.requested_minutes,
-                       r.quoted_amount_poisha, r.state, r.started_at, r.due_at, r.returned_at
+                       r.quoted_amount_poisha, r.state, r.started_at, r.returned_at
                 FROM public.rentals r
                 JOIN public.cycles c ON r.cycle_id = c.id
                 WHERE r.renter_id = ? AND r.state = 'ACTIVE'
@@ -162,15 +162,18 @@ public final class SupabaseCampusRepository implements CampusRepository {
             return fallback.activeRental(user);
 
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to query active rental from PostgreSQL, using fallback: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Failed to query active rental; using local fallback. [ACTIVE_FALLBACK]");
             return fallback.activeRental(user);
         }
     }
 
     @Override
     public synchronized RentalRecord book(CampusUser renter, String cycleId, int minutes) {
-        if (!DatabaseConnection.isAvailable() || !isUuid(cycleId) || !isUuid(renter.id())) {
+        if (!isUuid(cycleId) || !isUuid(renter.id())) {
             return fallback.book(renter, cycleId, minutes);
+        }
+        if (!DatabaseConnection.isAvailable()) {
+            throw new AppError("OFFLINE", "Live store is not configured. Booking is unavailable offline.");
         }
 
         // Execute atomic database transaction with row locking
@@ -212,11 +215,20 @@ public final class SupabaseCampusRepository implements CampusRepository {
                     }
                 }
 
-                // 3. Compute tariff
-                int basePoisha = 2000;
-                int extraMinutes = Math.max(0, minutes - 15);
-                int extraBlocks = (int) Math.ceil(extraMinutes / 15.0);
-                int totalPoisha = basePoisha + (extraBlocks * 1000);
+                // 3. Compute tariff (single source; server RPC is authoritative in production)
+                int totalPoisha = TariffService.quotePoisha(minutes);
+
+                // 4. Resolve active rate card
+                UUID rateCardId;
+                int rateVersion;
+                try (PreparedStatement rc = conn.prepareStatement(
+                        "SELECT id, version FROM public.rate_cards WHERE active_from <= now() AND (active_until IS NULL OR active_until > now()) ORDER BY version DESC LIMIT 1")) {
+                    try (ResultSet rs = rc.executeQuery()) {
+                        if (!rs.next()) throw new IllegalStateException("No active rate card.");
+                        rateCardId = (UUID) rs.getObject("id");
+                        rateVersion = rs.getInt("version");
+                    }
+                }
 
                 UUID rentalId = UUID.randomUUID();
                 UUID idempotencyKey = UUID.randomUUID();
@@ -225,48 +237,48 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
                 String insertSql = """
                         INSERT INTO public.rentals
-                        (id, cycle_id, renter_id, rate_card_version, quoted_amount_poisha, requested_minutes, state, started_at, due_at, currency, idempotency_key)
-                        VALUES (?, ?, ?, 1, ?, ?, 'ACTIVE', ?, ?, 'BDT', ?);
+                        (id, cycle_id, renter_id, rate_card_id, rate_card_version, quoted_amount_poisha, requested_minutes, state, started_at, idempotency_key)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?);
                         """;
 
                 try (PreparedStatement ins = conn.prepareStatement(insertSql)) {
                     ins.setObject(1, rentalId);
                     ins.setObject(2, UUID.fromString(cycleId));
                     ins.setObject(3, UUID.fromString(renter.id()));
-                    ins.setLong(4, (long) totalPoisha);
-                    ins.setInt(5, minutes);
-                    ins.setTimestamp(6, nowTs);
-                    ins.setTimestamp(7, dueTs);
-                    ins.setObject(8, idempotencyKey);
+                    ins.setObject(4, rateCardId);
+                    ins.setInt(5, rateVersion);
+                    ins.setLong(6, (long) totalPoisha);
+                    ins.setInt(7, minutes);
+                    ins.setTimestamp(8, nowTs);
+                    ins.setObject(9, idempotencyKey);
                     ins.executeUpdate();
                 }
 
-                // 4. Create payment record
-                String paySql = "INSERT INTO public.payment_records (id, rental_id, amount_poisha, currency, state) VALUES (?, ?, ?, 'BDT', 'PAID')";
+                // 5. Create payment record UNPAID until provider webhook
+                String paySql = "INSERT INTO public.payment_records (id, rental_id, amount_poisha, state) VALUES (?, ?, ?, 'UNPAID')";
                 try (PreparedStatement pStmt = conn.prepareStatement(paySql)) {
                     pStmt.setObject(1, UUID.randomUUID());
                     pStmt.setObject(2, rentalId);
                     pStmt.setLong(3, (long) totalPoisha);
                     pStmt.executeUpdate();
-                } catch (Exception pe) {
-                    LOGGER.log(Level.FINE, "Payment record insert note: " + pe.getMessage());
                 }
 
-                // 5. Mark cycle as RENTED
-                String updateCycle = "UPDATE public.cycles SET availability_status = 'RENTED', is_available = false, updated_at = now() WHERE id = ?";
+                // 6. Mark cycle as RENTED
+                String updateCycle = "UPDATE public.cycles SET availability_status = 'RENTED', updated_at = now() WHERE id = ?";
                 try (PreparedStatement upd = conn.prepareStatement(updateCycle)) {
                     upd.setObject(1, UUID.fromString(cycleId));
                     upd.executeUpdate();
                 }
 
-                // 6. Record audit event
+                // 7. Record audit event
                 try (PreparedStatement aStmt = conn.prepareStatement(
-                        "INSERT INTO public.audit_events (actor_id, action, object_type, object_id, details) VALUES (?, 'RENTAL_STARTED', 'RENTAL', ?, ?::jsonb)")) {
+                        "INSERT INTO public.audit_events (actor_id, entity_type, entity_id, action, details) VALUES (?, 'RENTAL', ?, 'STARTED', jsonb_build_object('minutes', ?::int, 'poisha', ?::int))")) {
                     aStmt.setObject(1, UUID.fromString(renter.id()));
                     aStmt.setObject(2, rentalId);
-                    aStmt.setString(3, "{\"minutes\":" + minutes + ",\"poisha\":" + totalPoisha + "}");
+                    aStmt.setInt(3, minutes);
+                    aStmt.setInt(4, totalPoisha);
                     aStmt.executeUpdate();
-                } catch (Exception ignored) {}
+                }
 
                 conn.commit();
 
@@ -289,17 +301,22 @@ public final class SupabaseCampusRepository implements CampusRepository {
                 conn.rollback();
                 throw e;
             }
+        } catch (AppError e) {
+            throw e;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Live booking failed, delegating to memory repository: " + e.getMessage());
-            return fallback.book(renter, cycleId, minutes);
+            LOGGER.log(Level.WARNING, "Live booking failed. [BOOK_FAILED]");
+            throw new AppError("BOOK_FAILED", "Booking failed. Please retry.", e);
         }
     }
 
     @Override
     public synchronized void returnRental(CampusUser renter, String rentalId) {
-        if (!DatabaseConnection.isAvailable() || !isUuid(rentalId)) {
+        if (!isUuid(rentalId)) {
             fallback.returnRental(renter, rentalId);
             return;
+        }
+        if (!DatabaseConnection.isAvailable()) {
+            throw new AppError("OFFLINE", "Return is unavailable offline. Please retry when connected.");
         }
 
         try (Connection conn = DatabaseConnection.getConnection()) {
@@ -327,7 +344,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
                 // Update cycle back to AVAILABLE
                 if (cycleId != null) {
-                    String updCycle = "UPDATE public.cycles SET availability_status = 'AVAILABLE', is_available = true, updated_at = now() WHERE id = ?";
+                    String updCycle = "UPDATE public.cycles SET availability_status = 'AVAILABLE', updated_at = now() WHERE id = ?";
                     try (PreparedStatement cStmt = conn.prepareStatement(updCycle)) {
                         cStmt.setObject(1, cycleId);
                         cStmt.executeUpdate();
@@ -336,11 +353,11 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
                 // Insert audit event
                 try (PreparedStatement aStmt = conn.prepareStatement(
-                        "INSERT INTO public.audit_events (actor_id, action, object_type, object_id, details) VALUES (?, 'RENTAL_RETURNED', 'RENTAL', ?, '{}'::jsonb)")) {
+                        "INSERT INTO public.audit_events (actor_id, entity_type, entity_id, action, details) VALUES (?, 'RENTAL', ?, 'RETURNED', '{}'::jsonb)")) {
                     aStmt.setObject(1, UUID.fromString(renter.id()));
                     aStmt.setObject(2, UUID.fromString(rentalId));
                     aStmt.executeUpdate();
-                } catch (Exception ignored) {}
+                }
 
                 conn.commit();
 
@@ -348,9 +365,11 @@ public final class SupabaseCampusRepository implements CampusRepository {
                 conn.rollback();
                 throw e;
             }
+        } catch (AppError e) {
+            throw e;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Live return failed, delegating to memory repository: " + e.getMessage());
-            fallback.returnRental(renter, rentalId);
+            LOGGER.log(Level.WARNING, "Live return failed. [RETURN_FAILED]");
+            throw new AppError("RETURN_FAILED", "Return failed. Please retry.", e);
         }
     }
 
@@ -359,41 +378,48 @@ public final class SupabaseCampusRepository implements CampusRepository {
         if (admin.role() != Role.ADMIN) {
             throw new SecurityException("Admin authorization required.");
         }
-        if (!DatabaseConnection.isAvailable() || !isUuid(cycleId)) {
+        if (!isUuid(cycleId)) {
             fallback.reviewCycle(admin, cycleId, approved, reason);
             return;
         }
+        if (!approved && (reason == null || reason.trim().length() < 10)) {
+            throw new IllegalArgumentException("A written reason (min 10 chars) is required to reject.");
+        }
+        if (!DatabaseConnection.isAvailable()) {
+            throw new AppError("OFFLINE", "Review is unavailable offline.");
+        }
 
-        String sql = "UPDATE public.cycles SET review_status = ?, is_verified = ?, updated_at = now() WHERE id = ?";
+        String sql = "UPDATE public.cycles SET review_status = ?, updated_at = now() WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, approved ? "APPROVED" : "REJECTED");
-            stmt.setBoolean(2, approved);
-            stmt.setObject(3, UUID.fromString(cycleId));
-            stmt.executeUpdate();
+            stmt.setObject(2, UUID.fromString(cycleId));
+            int updated = stmt.executeUpdate();
+            if (updated == 0) throw new IllegalStateException("Cycle not found.");
 
             // Insert audit event
             try (PreparedStatement aStmt = conn.prepareStatement(
-                    "INSERT INTO public.audit_events (actor_id, action, object_type, object_id, details) VALUES (?, ?, 'CYCLE', ?, ?::jsonb)")) {
+                    "INSERT INTO public.audit_events (actor_id, entity_type, entity_id, action, details) VALUES (?, 'CYCLE', ?, ?, jsonb_build_object('reason', ?))")) {
                 aStmt.setObject(1, UUID.fromString(admin.id()));
-                aStmt.setString(2, approved ? "CYCLE_APPROVED" : "CYCLE_REJECTED");
-                aStmt.setObject(3, UUID.fromString(cycleId));
-                aStmt.setString(4, "{\"reason\":\"" + (reason != null ? reason.replace("\"", "'") : "") + "\"}");
+                aStmt.setObject(2, UUID.fromString(cycleId));
+                aStmt.setString(3, approved ? "APPROVED" : "REJECTED");
+                aStmt.setString(4, reason == null ? "" : reason.trim());
                 aStmt.executeUpdate();
-            } catch (Exception ignored) {}
+            }
 
+        } catch (AppError e) {
+            throw e;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Live cycle review failed, delegating to fallback: " + e.getMessage());
-            fallback.reviewCycle(admin, cycleId, approved, reason);
+            LOGGER.log(Level.WARNING, "Live cycle review failed. [REVIEW_FAILED]");
+            throw new AppError("REVIEW_FAILED", "Review failed. Please retry.", e);
         }
     }
 
     @Override
     public synchronized void rebalanceHub(String sourceHub, String targetHub, int count) {
         if (!DatabaseConnection.isAvailable()) {
-            fallback.rebalanceHub(sourceHub, targetHub, count);
-            return;
+            throw new AppError("OFFLINE", "Rebalance is unavailable offline.");
         }
 
         String sql = """
@@ -414,9 +440,11 @@ public final class SupabaseCampusRepository implements CampusRepository {
             stmt.setInt(3, count);
             stmt.executeUpdate();
 
+        } catch (AppError e) {
+            throw e;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Live hub rebalancing failed, delegating to fallback: " + e.getMessage());
-            fallback.rebalanceHub(sourceHub, targetHub, count);
+            LOGGER.log(Level.WARNING, "Live hub rebalancing failed. [REBALANCE_FAILED]");
+            throw new AppError("REBALANCE_FAILED", "Rebalance failed. Please retry.", e);
         }
     }
 
@@ -469,15 +497,11 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
     private RentalRecord mapRentalRecord(ResultSet rs) throws SQLException {
         Timestamp startTs = rs.getTimestamp("started_at");
-        Timestamp dueTs = null;
-        try {
-            dueTs = rs.getTimestamp("due_at");
-        } catch (SQLException ignored) {}
         Timestamp retTs = rs.getTimestamp("returned_at");
 
         ZonedDateTime startZoned = startTs != null ? startTs.toInstant().atZone(DHAKA) : ZonedDateTime.now(DHAKA);
         int reqMins = rs.getInt("requested_minutes");
-        ZonedDateTime dueZoned = dueTs != null ? dueTs.toInstant().atZone(DHAKA) : startZoned.plusMinutes(reqMins);
+        ZonedDateTime dueZoned = startZoned.plusMinutes(reqMins);
         ZonedDateTime retZoned = retTs != null ? retTs.toInstant().atZone(DHAKA) : null;
 
         String stateStr = rs.getString("state");
@@ -489,7 +513,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
         return new RentalRecord(
                 rs.getString("id"),
                 rs.getString("cycle_id"),
-                rs.getString("label") != null ? rs.getString("label") : "Cycle #" + rs.getString("cycle_id").substring(0, 4),
+                rs.getString("label") != null ? rs.getString("label") : safeCycleLabel(rs.getString("cycle_id")),
                 rs.getString("renter_id"),
                 reqMins,
                 rs.getInt("quoted_amount_poisha"),
@@ -498,6 +522,72 @@ public final class SupabaseCampusRepository implements CampusRepository {
                 dueZoned,
                 retZoned
         );
+    }
+
+    private String safeCycleLabel(String cycleId) {
+        if (cycleId == null || cycleId.length() < 4) return "Campus Cycle";
+        return "Cycle #" + cycleId.substring(0, 4);
+    }
+
+    @Override
+    public synchronized String openDispute(CampusUser renter, String rentalId, String reason) {
+        if (reason == null || reason.trim().length() < 10 || reason.trim().length() > 2000) {
+            throw new IllegalArgumentException("Dispute reason must be 10-2000 characters.");
+        }
+        if (!isUuid(rentalId) || !isUuid(renter.id())) {
+            throw new AppError("DISPUTE_FAILED", "Dispute failed. Invalid rental.");
+        }
+        if (!DatabaseConnection.isAvailable()) {
+            return fallback.openDispute(renter, rentalId, reason);
+        }
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String check = "SELECT renter_id, state FROM public.rentals WHERE id = ? FOR UPDATE";
+                try (PreparedStatement chk = conn.prepareStatement(check)) {
+                    chk.setObject(1, UUID.fromString(rentalId));
+                    try (ResultSet rs = chk.executeQuery()) {
+                        if (!rs.next()) throw new IllegalStateException("Rental not found.");
+                        if (!renter.id().equals(rs.getString("renter_id"))) {
+                            throw new SecurityException("Only the renter can dispute this rental.");
+                        }
+                        if (!"RETURNED".equalsIgnoreCase(rs.getString("state"))) {
+                            throw new IllegalStateException("Only RETURNED rentals can be disputed.");
+                        }
+                    }
+                }
+                UUID disputeId = UUID.randomUUID();
+                try (PreparedStatement ins = conn.prepareStatement(
+                        "INSERT INTO public.disputes (id, rental_id, opened_by, reason) VALUES (?, ?, ?, ?)")) {
+                    ins.setObject(1, disputeId);
+                    ins.setObject(2, UUID.fromString(rentalId));
+                    ins.setObject(3, UUID.fromString(renter.id()));
+                    ins.setString(4, reason.trim());
+                    ins.executeUpdate();
+                }
+                try (PreparedStatement upd = conn.prepareStatement(
+                        "UPDATE public.rentals SET state = 'DISPUTED', updated_at = now() WHERE id = ?")) {
+                    upd.setObject(1, UUID.fromString(rentalId));
+                    upd.executeUpdate();
+                }
+                try (PreparedStatement aStmt = conn.prepareStatement(
+                        "INSERT INTO public.audit_events (actor_id, entity_type, entity_id, action, details) VALUES (?, 'DISPUTE', ?, 'OPENED', '{}'::jsonb)")) {
+                    aStmt.setObject(1, UUID.fromString(renter.id()));
+                    aStmt.setObject(2, disputeId);
+                    aStmt.executeUpdate();
+                }
+                conn.commit();
+                return disputeId.toString();
+            } catch (Exception e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+            throw e;
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Live dispute failed. [DISPUTE_FAILED]");
+            throw new AppError("DISPUTE_FAILED", "Dispute failed. Please retry.", e);
+        }
     }
 
     private boolean isUuid(String value) {

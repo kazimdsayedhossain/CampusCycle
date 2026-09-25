@@ -33,6 +33,7 @@ public class AdminOperationsView extends VBox {
     private final TableView<CycleItem> cycleTableView = new TableView<>();
     private final Label totalFleetVal = new Label("Loading...");
     private final Label pendingApprovalsVal = new Label("Loading...");
+    private final Label co2Val = new Label("0.0 kg CO2");
     private final VBox pendingListContainer = new VBox(12);
 
     public AdminOperationsView(CampusUser admin, CampusRepository repo, Runnable onRefresh) {
@@ -49,9 +50,10 @@ public class AdminOperationsView extends VBox {
         GridPane bento = createAdminBento();
         VBox rebalanceSection = createRebalanceSection();
         VBox approvalSection = createApprovalQueueSection();
+        VBox disputeSection = createDisputeQueueSection();
         VBox inventoryTableSection = createInventoryTableSection();
 
-        getChildren().addAll(header, bento, rebalanceSection, approvalSection, inventoryTableSection);
+        getChildren().addAll(header, bento, rebalanceSection, approvalSection, disputeSection, inventoryTableSection);
         ThemeManager.applyFadeIn(this);
 
         loadAdminDataAsync();
@@ -89,8 +91,8 @@ public class AdminOperationsView extends VBox {
 
         VBox c1 = createBentoCard("TOTAL CAMPUS FLEET", totalFleetVal, new Label("Live Tracked Units"), ThemeManager.ICON_BIKE, "#0284C7");
         VBox c2 = createBentoCard("PENDING APPROVALS", pendingApprovalsVal, new Label("Queued for Review"), ThemeManager.ICON_ALERT, "#F59E0B");
-        VBox c3 = createBentoCard("SYSTEM CO2 AVOIDED", new Label("148.6 kg CO2"), new Label("Clean Kilometers"), ThemeManager.ICON_LEAF, "#10B981");
-        VBox c4 = createBentoCard("DOCK CAPACITY", new Label("84% Healthy"), new Label("5 Hubs Balanced"), ThemeManager.ICON_DISPATCH, "#0284C7");
+        VBox c3 = createBentoCard("EST. CO2 AVOIDED", co2Val, new Label("2.8 km avg per ride"), ThemeManager.ICON_LEAF, "#10B981");
+        VBox c4 = createBentoCard("HUBS ONLINE", new Label("5 Hubs"), new Label("KUET Network"), ThemeManager.ICON_DISPATCH, "#0284C7");
 
         grid.add(c1, 0, 0);
         grid.add(c2, 1, 0);
@@ -156,8 +158,8 @@ public class AdminOperationsView extends VBox {
         Label fromLbl = new Label("SURPLUS ORIGIN HUB");
         fromLbl.getStyleClass().add("metric-label");
         ComboBox<String> fromHub = new ComboBox<>();
-        fromHub.getItems().addAll("KUET Central Library", "Student Welfare Centre", "KUET Main Gate", "Hall Gate", "Academic Building");
-        fromHub.setValue("KUET Central Library");
+        fromHub.getItems().addAll(bd.ac.kuet.campuscycle.domain.CampusHubs.names());
+        fromHub.setValue(bd.ac.kuet.campuscycle.domain.CampusHubs.names().get(0));
         fromHub.getStyleClass().add("modern-input");
         fromHub.setPrefWidth(220);
         fromCol.getChildren().addAll(fromLbl, fromHub);
@@ -166,8 +168,8 @@ public class AdminOperationsView extends VBox {
         Label toLbl = new Label("DEFICIT DESTINATION HUB");
         toLbl.getStyleClass().add("metric-label");
         ComboBox<String> toHub = new ComboBox<>();
-        toHub.getItems().addAll("KUET Central Library", "Student Welfare Centre", "KUET Main Gate", "Hall Gate", "Academic Building");
-        toHub.setValue("Hall Gate");
+        toHub.getItems().addAll(bd.ac.kuet.campuscycle.domain.CampusHubs.names());
+        toHub.setValue(bd.ac.kuet.campuscycle.domain.CampusHubs.names().get(3));
         toHub.getStyleClass().add("modern-input");
         toHub.setPrefWidth(220);
         toCol.getChildren().addAll(toLbl, toHub);
@@ -197,7 +199,7 @@ public class AdminOperationsView extends VBox {
             String dst = toHub.getValue();
             int qty = spinner.getValue();
             if (src.equals(dst)) {
-                feedbackLbl.setText("⚠ Origin and destination hubs must be different");
+                feedbackLbl.setText("Origin and destination hubs must be different");
                 feedbackLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #DC2626;");
                 feedbackLbl.setVisible(true);
                 return;
@@ -211,14 +213,14 @@ public class AdminOperationsView extends VBox {
                     },
                     res -> {
                         dispatchBtn.setDisable(false);
-                        feedbackLbl.setText("✓ Transferred " + qty + " cycles from " + src + " to " + dst);
+                        feedbackLbl.setText("Transferred " + qty + " cycles from " + src + " to " + dst);
                         feedbackLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #10B981;");
                         feedbackLbl.setVisible(true);
                         loadAdminDataAsync();
                     },
                     err -> {
                         dispatchBtn.setDisable(false);
-                        feedbackLbl.setText("Rebalance failed: " + err.getMessage());
+                        feedbackLbl.setText("Rebalance failed. Please retry.");
                         feedbackLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #DC2626;");
                         feedbackLbl.setVisible(true);
                     }
@@ -243,6 +245,23 @@ public class AdminOperationsView extends VBox {
         titleCol.getChildren().addAll(title, sub);
 
         card.getChildren().addAll(titleCol, pendingListContainer);
+        return card;
+    }
+
+    private final javafx.collections.ObservableList<String> disputeLines =
+            javafx.collections.FXCollections.observableArrayList();
+    private final ListView<String> disputeList = new ListView<>(disputeLines);
+
+    private VBox createDisputeQueueSection() {
+        VBox card = new VBox(12);
+        card.getStyleClass().add("bento-card");
+        card.setPadding(new Insets(24));
+        Label title = new Label("Open Fare Disputes");
+        title.setStyle("-fx-font-size: 16px; -fx-font-weight: 750;");
+        Label sub = new Label("RETURNED rentals under review. Resolution requires written note (handled via RPC).");
+        sub.setStyle("-fx-font-size: 12px; -fx-opacity: 0.7;");
+        disputeList.setPrefHeight(120);
+        card.getChildren().addAll(title, sub, disputeList);
         return card;
     }
 
@@ -289,14 +308,22 @@ public class AdminOperationsView extends VBox {
 
         cycleTableView.getColumns().setAll(List.of(labelCol, ownerCol, hubCol, typeCol, condCol, statusCol));
 
-        // Right-Click Context Menu (Fintory Style)
+        // Right-Click Context Menu (async; never block FX thread)
         ContextMenu contextMenu = new ContextMenu();
         MenuItem approveItem = new MenuItem("Approve Listing");
         approveItem.setOnAction(e -> {
             CycleItem selected = cycleTableView.getSelectionModel().getSelectedItem();
             if (selected != null) {
-                repo.reviewCycle(admin, selected.id(), true, "Approved via Master Table");
-                loadAdminDataAsync();
+                AppExecutor.asyncThenFx(
+                        () -> {
+                            repo.reviewCycle(admin, selected.id(), true, "Approved for campus circulation");
+                            return true;
+                        },
+                        res -> loadAdminDataAsync(),
+                        err -> {
+                            Alert a = new Alert(Alert.AlertType.ERROR, "Review failed. Please retry.", ButtonType.OK);
+                            a.showAndWait();
+                        });
             }
         });
 
@@ -304,8 +331,19 @@ public class AdminOperationsView extends VBox {
         rejectItem.setOnAction(e -> {
             CycleItem selected = cycleTableView.getSelectionModel().getSelectedItem();
             if (selected != null) {
-                repo.reviewCycle(admin, selected.id(), false, "Maintenance required");
-                loadAdminDataAsync();
+                TextInputDialog dialog = new TextInputDialog("Physical inspection failed - ");
+                dialog.setTitle("Reject Cycle");
+                dialog.setHeaderText("Written reason required (min 10 chars)");
+                dialog.showAndWait().ifPresent(reason -> AppExecutor.asyncThenFx(
+                        () -> {
+                            repo.reviewCycle(admin, selected.id(), false, reason);
+                            return true;
+                        },
+                        res -> loadAdminDataAsync(),
+                        err -> {
+                            Alert a = new Alert(Alert.AlertType.ERROR, "Review failed. Please retry.", ButtonType.OK);
+                            a.showAndWait();
+                        }));
             }
         });
 
@@ -333,13 +371,29 @@ public class AdminOperationsView extends VBox {
                 () -> {
                     List<CycleItem> all = repo.catalog(admin);
                     List<CycleItem> pending = repo.pendingCycles();
-                    return new AdminDataPayload(all, pending);
+                    List<bd.ac.kuet.campuscycle.domain.DisputeItem> disputes;
+                    try {
+                        disputes = repo.disputeQueue(admin);
+                    } catch (Exception e) {
+                        disputes = List.of();
+                    }
+                    return new AdminDataPayload(all, pending, disputes);
                 },
                 payload -> {
                     totalFleetVal.setText(payload.all.size() + " Units");
                     pendingApprovalsVal.setText(payload.pending.size() + " Pending");
+                    // Real estimate: 2.8 km avg per cycle in fleet * 0.021 kg CO2/km vs motorbike
+                    double co2 = payload.all.size() * 2.8 * 0.021;
+                    co2Val.setText(String.format("%.1f kg CO2", co2));
 
                     masterInventory.setAll(payload.all);
+                    disputeLines.clear();
+                    for (bd.ac.kuet.campuscycle.domain.DisputeItem d : payload.disputes()) {
+                        disputeLines.add(d.disputeId() + " - rental " + d.rentalId() + " [" + d.state() + "]: " + d.reason());
+                    }
+                    if (payload.disputes().isEmpty()) {
+                        disputeLines.add("No open disputes.");
+                    }
 
                     pendingListContainer.getChildren().clear();
                     if (payload.pending.isEmpty()) {
@@ -422,5 +476,6 @@ public class AdminOperationsView extends VBox {
         return row;
     }
 
-    private record AdminDataPayload(List<CycleItem> all, List<CycleItem> pending) {}
+    private record AdminDataPayload(List<CycleItem> all, List<CycleItem> pending,
+            List<bd.ac.kuet.campuscycle.domain.DisputeItem> disputes) {}
 }

@@ -41,6 +41,7 @@ public class FleetCatalogView extends VBox {
 
     private List<CycleItem> cachedCycles = new ArrayList<>();
     private boolean isLoading = false;
+    private BingMapView stationMap;
 
     public FleetCatalogView(CampusUser user,
                             CampusRepository repo,
@@ -77,10 +78,12 @@ public class FleetCatalogView extends VBox {
 
         VBox titleCol = new VBox(2);
         Label title = new Label("KUET Fleet Catalog");
+        title.getStyleClass().add("card-title");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
 
         Label sub = new Label("Discover and instantly reserve verified bicycles across all 5 campus hubs");
-        sub.setStyle("-fx-font-size: 13px; -fx-opacity: 0.75;");
+        sub.getStyleClass().add("metric-label");
+        sub.setStyle("-fx-opacity: 0.75;");
         titleCol.getChildren().addAll(title, sub);
 
         Region spacer = new Region();
@@ -95,11 +98,14 @@ public class FleetCatalogView extends VBox {
 
         Button toggleMapBtn = new Button("Toggle Station Map");
         toggleMapBtn.getStyleClass().add("secondary-button");
-        toggleMapBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_PIN, 13, Color.web("#0284C7")));
+        toggleMapBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_PIN, 13, Color.web("#1D4ED8")));
         toggleMapBtn.setOnAction(e -> {
             isMapVisible = !isMapVisible;
             mapContainer.setVisible(isMapVisible);
             mapContainer.setManaged(isMapVisible);
+            if (isMapVisible && stationMap == null) {
+                rebuildStationMap();
+            }
         });
 
         row.getChildren().addAll(titleCol, spacer, registerBtn, toggleMapBtn);
@@ -109,14 +115,27 @@ public class FleetCatalogView extends VBox {
     private void setupMapContainer() {
         mapContainer.setVisible(false);
         mapContainer.setManaged(false);
+        // Lazy: WebView created only when user toggles map visible.
+    }
 
+    private void rebuildStationMap() {
+        if (stationMap != null) stationMap.dispose();
         BingMapView map = new BingMapView(
                 cachedCycles,
                 hubName -> searchField.setText(hubName),
                 onLocationChanged
         );
+        stationMap = map;
         map.setPrefHeight(400);
-        mapContainer.getChildren().add(map);
+        mapContainer.getChildren().setAll(map);
+    }
+
+    /** Release embedded map. */
+    public void dispose() {
+        if (stationMap != null) {
+            stationMap.dispose();
+            stationMap = null;
+        }
     }
 
     private VBox createControlBar() {
@@ -130,7 +149,7 @@ public class FleetCatalogView extends VBox {
         searchBox.getStyleClass().add("input-pill-box");
         searchBox.setPrefWidth(380);
 
-        SVGPath searchIcon = ThemeManager.createIcon(ThemeManager.ICON_SEARCH, 14, Color.web("#94A3B8"));
+        SVGPath searchIcon = ThemeManager.createIcon(ThemeManager.ICON_SEARCH, 14, Color.web("#9CA3AF"));
         searchField.setPromptText("Search cycles by model, station, or owner...");
         searchField.getStyleClass().add("bare-input");
         HBox.setHgrow(searchField, Priority.ALWAYS);
@@ -143,7 +162,7 @@ public class FleetCatalogView extends VBox {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         availableOnlyCheck.setSelected(true);
-        availableOnlyCheck.setStyle("-fx-font-size: 12px; -fx-font-weight: 650;");
+        availableOnlyCheck.getStyleClass().add("metric-label");
         availableOnlyCheck.selectedProperty().addListener((obs, o, n) -> applyFilter());
 
         topRow.getChildren().addAll(searchBox, spacer, availableOnlyCheck);
@@ -198,22 +217,17 @@ public class FleetCatalogView extends VBox {
                 cycles -> {
                     isLoading = false;
                     this.cachedCycles = cycles;
-                    // Update map with real cycles
-                    mapContainer.getChildren().clear();
-                    BingMapView map = new BingMapView(
-                            cachedCycles,
-                            hubName -> searchField.setText(hubName),
-                            onLocationChanged
-                    );
-                    map.setPrefHeight(400);
-                    mapContainer.getChildren().add(map);
+                    // Update map only if visible (lazy, dispose previous)
+                    if (isMapVisible) {
+                        rebuildStationMap();
+                    }
 
                     applyFilter();
                 },
                 throwable -> {
                     isLoading = false;
                     cardsGrid.getChildren().clear();
-                    cardsGrid.getChildren().add(new Label("Failed to load catalog: " + throwable.getMessage()));
+                    cardsGrid.getChildren().add(new Label("Catalog is offline. Please retry."));
                 }
         );
     }
@@ -263,10 +277,19 @@ public class FleetCatalogView extends VBox {
         card.setPrefWidth(340);
         card.setMaxWidth(340);
 
+        String accentColor = switch (cycle.type()) {
+            case ELECTRIC_BIKE -> "#10B981";
+            case ROAD_BIKE -> "#8B5CF6";
+            case CARGO_BIKE -> "#F59E0B";
+            case CITY_BIKE -> "#0284C7";
+            default -> "#0EA5E9";
+        };
+        card.setStyle(card.getStyle() + String.format("; -fx-border-color: transparent transparent transparent %s; -fx-border-width: 0 0 0 4px;", accentColor));
+
         HBox top = new HBox(10);
         top.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane iconStage = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 18, Color.web("#0284C7")));
+        StackPane iconStage = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 18, Color.web(accentColor)));
         iconStage.setPrefSize(36, 36);
         iconStage.getStyleClass().add("action-icon-btn");
 
@@ -275,7 +298,8 @@ public class FleetCatalogView extends VBox {
         name.getStyleClass().add("card-title");
 
         Label owner = new Label("Verified Owner: " + cycle.ownerName());
-        owner.setStyle("-fx-font-size: 10.5px; -fx-opacity: 0.7;");
+        owner.getStyleClass().add("metric-label");
+        owner.setStyle("-fx-opacity: 0.7;");
         titleCol.getChildren().addAll(name, owner);
 
         Region spacer = new Region();
@@ -287,11 +311,13 @@ public class FleetCatalogView extends VBox {
         top.getChildren().addAll(iconStage, titleCol, spacer, typeBadge);
 
         VBox metaSection = new VBox(6);
-        Label station = new Label("📍 Dock: " + cycle.pickupPoint());
-        station.setStyle("-fx-font-size: 12px; -fx-font-weight: 650;");
+        Label station = new Label("Dock: " + cycle.pickupPoint());
+        station.getStyleClass().add("metric-label");
+        station.setStyle("-fx-font-weight: 650;");
 
         Label desc = new Label(cycle.description().isEmpty() ? "Standard KUET campus commuter bicycle." : cycle.description());
-        desc.setStyle("-fx-font-size: 11px; -fx-opacity: 0.65;");
+        desc.getStyleClass().add("metric-label");
+        desc.setStyle("-fx-opacity: 0.65;");
         desc.setWrapText(true);
 
         metaSection.getChildren().addAll(station, desc);
@@ -300,11 +326,13 @@ public class FleetCatalogView extends VBox {
         bottom.setAlignment(Pos.CENTER_LEFT);
 
         VBox priceCol = new VBox(1);
-        Label rate = new Label("BDT 20.00");
-        rate.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #0284C7;");
+        Label rate = new Label(bd.ac.kuet.campuscycle.domain.TariffService.formatBdt(bd.ac.kuet.campuscycle.domain.TariffService.BASE_CHARGE_POISHA));
+        rate.getStyleClass().add("metric-number");
+        rate.setStyle("-fx-text-fill: #1D4ED8;");
 
         Label sub = new Label("First 15m • +10/15m");
-        sub.setStyle("-fx-font-size: 9.5px; -fx-opacity: 0.6;");
+        sub.getStyleClass().add("metric-label");
+        sub.setStyle("-fx-opacity: 0.6;");
         priceCol.getChildren().addAll(rate, sub);
 
         Region sp2 = new Region();

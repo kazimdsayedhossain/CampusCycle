@@ -50,9 +50,10 @@ public class CampusMapCanvas extends StackPane {
     private double nearestDistanceMeters = 180;
     private double pulsePhase = 0;
     private final Timeline pulseTimeline;
+    private final javafx.beans.value.ChangeListener<ThemeManager.Theme> themeListener;
 
     private final Label nearestLabel = new Label();
-    private final Button exploreHubBtn = new Button("View Cycles Here →");
+    private final Button exploreHubBtn = new Button("View Cycles Here");
 
     public CampusMapCanvas(List<CycleItem> cycles,
                            Consumer<String> onHubSelected,
@@ -67,8 +68,8 @@ public class CampusMapCanvas extends StackPane {
 
         setupCanvasInteractivity();
 
-        pulseTimeline = new Timeline(new KeyFrame(Duration.millis(50), e -> {
-            pulsePhase = (pulsePhase + 0.08) % (Math.PI * 2);
+        pulseTimeline = new Timeline(new KeyFrame(Duration.millis(800), e -> {
+            pulsePhase = (pulsePhase + 0.5) % (Math.PI * 2);
             renderMap();
         }));
         pulseTimeline.setCycleCount(Animation.INDEFINITE);
@@ -79,7 +80,17 @@ public class CampusMapCanvas extends StackPane {
         VBox overlay = createMapOverlay();
         getChildren().addAll(canvas, overlay);
 
-        ThemeManager.themeProperty().addListener((obs, o, n) -> renderMap());
+        themeListener = (obs, o, n) -> renderMap();
+        ThemeManager.themeProperty().addListener(themeListener);
+    }
+
+    /** Stop background redraws; call when view is removed. */
+    public void dispose() {
+        try {
+            pulseTimeline.stop();
+            ThemeManager.themeProperty().removeListener(themeListener);
+        } catch (Exception ignored) {
+        }
     }
 
     private void setupCanvasInteractivity() {
@@ -144,7 +155,7 @@ public class CampusMapCanvas extends StackPane {
                 .filter(c -> c.pickupPoint().equalsIgnoreCase(nearestHub.name) && c.availabilityStatus() == AvailabilityStatus.AVAILABLE)
                 .count();
 
-        nearestLabel.setText(String.format("📍 Nearest Station: %s (%.0fm away • ~%d min walk) • %d cycles ready",
+        nearestLabel.setText(String.format("Nearest Station: %s (%.0fm away, ~%d min walk) - %d cycles ready",
                 nearestHub.name, nearestDistanceMeters, walkMin, count));
     }
 

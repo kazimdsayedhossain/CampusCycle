@@ -23,7 +23,13 @@ public class WeatherService {
     private static final String WEATHER_API_URL =
             "https://api.open-meteo.com/v1/forecast?latitude=22.84&longitude=89.54&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m";
 
-    private final HttpClient httpClient;
+    private static final java.net.http.HttpClient SHARED_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(6))
+            .build();
+    private static volatile KhulnaWeather cached;
+    private static volatile long cachedAt = 0;
+
+    private final HttpClient httpClient = SHARED_CLIENT;
 
     public record KhulnaWeather(
             double temperatureCelsius,
@@ -36,16 +42,22 @@ public class WeatherService {
     ) {}
 
     public WeatherService() {
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(6))
-                .build();
     }
 
     /**
-     * Fetches current Khulna weather asynchronously.
+     * Fetches current Khulna weather asynchronously with 5-min cache.
      */
     public CompletableFuture<KhulnaWeather> fetchCurrentWeatherAsync() {
-        return AppExecutor.supplyAsync(this::fetchCurrentWeather);
+        KhulnaWeather hit = cached;
+        if (hit != null && System.currentTimeMillis() - cachedAt < 300_000) {
+            return CompletableFuture.completedFuture(hit);
+        }
+        return AppExecutor.supplyAsync(() -> {
+            KhulnaWeather fresh = this.fetchCurrentWeather();
+            cached = fresh;
+            cachedAt = System.currentTimeMillis();
+            return fresh;
+        });
     }
 
     /**
