@@ -74,17 +74,15 @@ public class FleetCatalogView extends VBox {
     }
 
     private HBox createHeader() {
-        HBox row = new HBox(12);
+        HBox row = new HBox(16);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleCol = new VBox(2);
+        VBox titleCol = new VBox(4);
         Label title = new Label("KUET Fleet Catalog");
-        title.getStyleClass().add("card-title");
-        title.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
+        title.getStyleClass().add("view-title");
 
         Label sub = new Label("Discover and instantly reserve verified bicycles across all 5 campus hubs");
-        sub.getStyleClass().add("metric-label");
-        sub.setStyle("-fx-opacity: 0.75;");
+        sub.getStyleClass().add("view-subtitle");
         titleCol.getChildren().addAll(title, sub);
 
         Region spacer = new Region();

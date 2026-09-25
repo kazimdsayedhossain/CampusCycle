@@ -106,24 +106,51 @@ Label {
     -fx-text-fill: white;
 }
 
-.nav-menu, .nav-menu > .label {
+.nav-menu {
     -fx-background-color: transparent;
     -fx-background-radius: 999px;
+    -fx-cursor: hand;
+    -fx-padding: 8px 14px 8px 16px;
+}
+.nav-menu > .label,
+.nav-menu .label {
     -fx-text-fill: -fx-ink-500;
     -fx-font-size: 12.5px;
     -fx-font-weight: 700;
-    -fx-padding: 8px 14px 8px 16px;
-    -fx-cursor: hand;
-    -fx-mark-color: -fx-ink-400;
 }
-.nav-menu:hover { -fx-background-color: derive(-fx-navy, 92%); }
-.nav-menu-active, .nav-menu-active > .label, .nav-menu-active .label, .nav-menu-active:hover > .label {
+.nav-menu .arrow,
+.nav-menu .arrow-button .arrow {
+    -fx-background-color: -fx-ink-400;
+}
+.nav-menu:hover {
+    -fx-background-color: derive(-fx-navy, 92%);
+}
+.nav-menu:hover > .label,
+.nav-menu:hover .label {
+    -fx-text-fill: -fx-ink-900;
+}
+.nav-menu:hover .arrow,
+.nav-menu:hover .arrow-button .arrow {
+    -fx-background-color: -fx-ink-900;
+}
+
+.nav-menu-active,
+.nav-menu-active:hover {
     -fx-background-color: -fx-navy;
-    -fx-text-fill: white !important;
-    -fx-mark-color: white !important;
 }
-.nav-menu-active .arrow, .nav-menu-active:hover .arrow, .nav-menu-active .arrow-button .arrow {
+.nav-menu-active,
+.nav-menu-active > .label,
+.nav-menu-active .label,
+.nav-menu-active:hover,
+.nav-menu-active:hover > .label,
+.nav-menu-active:hover .label {
+    -fx-text-fill: white !important;
+}
+.nav-menu-active .arrow,
+.nav-menu-active:hover .arrow,
+.nav-menu-active .arrow-button .arrow {
     -fx-background-color: white !important;
+    -fx-mark-color: white !important;
 }
 .content-center-wrap {
     -fx-alignment: top-center;
@@ -205,6 +232,19 @@ Label {
     -fx-border-color: -fx-border-c;
     -fx-border-radius: 14px;
     -fx-border-width: 1px;
+}
+
+.view-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: 800;
+    -fx-text-fill: -fx-ink-900;
+}
+
+.view-subtitle {
+    -fx-font-size: 13px;
+    -fx-font-weight: 400;
+    -fx-text-fill: -fx-ink-500;
+    -fx-opacity: 0.85;
 }
 
 .card-title {

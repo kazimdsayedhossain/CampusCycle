@@ -131,11 +131,12 @@ public class AppHeader extends HBox {
     }
 
     private void addMoreNavigation() {
-        moreMenu.getStyleClass().setAll("nav-menu");
+        moreMenu.getStyleClass().setAll("menu-button", "nav-menu");
         moreMenu.getItems().clear();
         addMenuItem("Passbook");
         addMenuItem("Support");
         if (user.role() == Role.ADMIN) addMenuItem("Admin Operations");
+        ThemeManager.applySpringHover(moreMenu);
         navCapsule.getChildren().add(moreMenu);
     }
 
