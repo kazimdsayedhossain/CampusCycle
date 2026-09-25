@@ -250,7 +250,11 @@ public final class CampusCycleApplication extends Application {
             }
         }
 
-        ScrollPane scroll = new ScrollPane(content);
+        StackPane centerWrap = new StackPane(content);
+        centerWrap.setAlignment(Pos.TOP_CENTER);
+        centerWrap.setStyle("-fx-background-color: transparent;");
+
+        ScrollPane scroll = new ScrollPane(centerWrap);
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("scroll-pane");
         mainLayout.setCenter(scroll);

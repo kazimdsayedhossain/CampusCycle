@@ -163,7 +163,12 @@ public class AppHeader extends HBox {
         }
         boolean morePage = List.of("Passbook", "Support", "Admin Operations").contains(pageName);
         moreMenu.getStyleClass().remove("nav-menu-active");
-        if (morePage) moreMenu.getStyleClass().add("nav-menu-active");
+        if (morePage) {
+            moreMenu.getStyleClass().add("nav-menu-active");
+            moreMenu.setStyle("-fx-text-fill: white;");
+        } else {
+            moreMenu.setStyle("");
+        }
     }
 
     private HBox createRightControls() {
