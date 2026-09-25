@@ -1,15 +1,20 @@
 package bd.ac.kuet.campuscycle.ui;
 
 import bd.ac.kuet.campuscycle.data.CampusRepository;
+import bd.ac.kuet.campuscycle.data.EventBus;
 import bd.ac.kuet.campuscycle.domain.CampusUser;
 import bd.ac.kuet.campuscycle.domain.CycleItem;
+import bd.ac.kuet.campuscycle.domain.RentalRecord;
 import bd.ac.kuet.campuscycle.domain.Role;
+import bd.ac.kuet.campuscycle.domain.event.RentalStartedEvent;
+import bd.ac.kuet.campuscycle.service.AppExecutor;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 
+import java.time.Instant;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
@@ -28,6 +33,10 @@ public class ReservationModal extends StackPane {
     private final Label discountLabel = new Label();
     private final Label totalLabel = new Label();
 
+    private final RadioButton rbSubsidy = new RadioButton("KUET Campus Subsidy (25% Auto-Deduction)");
+    private final RadioButton rbBkash = new RadioButton("bKash / Nagad Instant Mobile Banking");
+    private final RadioButton rbSmartCard = new RadioButton("KUET Smart ID NFC Card Balance");
+
     public ReservationModal(CycleItem cycle,
                             CampusUser user,
                             CampusRepository repo,
@@ -42,18 +51,19 @@ public class ReservationModal extends StackPane {
         getStyleClass().add("modal-overlay");
         setAlignment(Pos.CENTER);
 
-        VBox sheet = new VBox(20);
+        VBox sheet = new VBox(18);
         sheet.getStyleClass().add("modal-sheet");
-        sheet.setMaxWidth(480);
+        sheet.setMaxWidth(500);
         sheet.setPadding(new Insets(28));
 
         HBox header = createHeader();
         VBox cycleInfo = createCycleInfoCard();
         VBox sliderSection = createSliderSection();
+        VBox paymentMethodSection = createPaymentMethodSection();
         VBox summarySection = createSummarySection();
         HBox actions = createActionButtons();
 
-        sheet.getChildren().addAll(header, cycleInfo, sliderSection, summarySection, actions);
+        sheet.getChildren().addAll(header, cycleInfo, sliderSection, paymentMethodSection, summarySection, actions);
         getChildren().add(sheet);
 
         updateTariffCalculation();
@@ -152,6 +162,32 @@ public class ReservationModal extends StackPane {
         return box;
     }
 
+    private VBox createPaymentMethodSection() {
+        VBox box = new VBox(8);
+
+        Label label = new Label("PAYMENT & SUBSIDY CHANNEL");
+        label.getStyleClass().add("metric-label");
+
+        ToggleGroup tg = new ToggleGroup();
+        rbSubsidy.setToggleGroup(tg);
+        rbBkash.setToggleGroup(tg);
+        rbSmartCard.setToggleGroup(tg);
+        rbSubsidy.setSelected(true);
+
+        rbSubsidy.getStyleClass().add("radio-button");
+        rbBkash.getStyleClass().add("radio-button");
+        rbSmartCard.getStyleClass().add("radio-button");
+
+        tg.selectedToggleProperty().addListener((obs, oldVal, newVal) -> updateTariffCalculation());
+
+        VBox radioBox = new VBox(6, rbSubsidy, rbBkash, rbSmartCard);
+        radioBox.getStyleClass().add("sub-panel");
+        radioBox.setPadding(new Insets(10, 14, 10, 14));
+
+        box.getChildren().addAll(label, radioBox);
+        return box;
+    }
+
     private VBox createSummarySection() {
         VBox box = new VBox(8);
         box.getStyleClass().add("sub-panel");
@@ -193,12 +229,12 @@ public class ReservationModal extends StackPane {
         int extraBlocks = (int) Math.ceil(extraMinutes / 15.0);
         int subtotalPoisha = basePoisha + (extraBlocks * 1000);
 
-        boolean isStudent = user.role() == Role.STUDENT;
-        int discountPoisha = isStudent ? (int) (subtotalPoisha * 0.25) : 0;
+        boolean applySubsidy = rbSubsidy.isSelected() && (user.role() == Role.STUDENT);
+        int discountPoisha = applySubsidy ? (int) (subtotalPoisha * 0.25) : 0;
         int netPoisha = subtotalPoisha - discountPoisha;
 
         tariffLabel.setText(String.format("BDT %.2f", subtotalPoisha / 100.0));
-        discountLabel.setText(isStudent ? String.format("- BDT %.2f", discountPoisha / 100.0) : "BDT 0.00");
+        discountLabel.setText(applySubsidy ? String.format("- BDT %.2f", discountPoisha / 100.0) : "BDT 0.00");
         totalLabel.setText(String.format("BDT %.2f", netPoisha / 100.0));
     }
 
@@ -213,13 +249,23 @@ public class ReservationModal extends StackPane {
         Button confirmBtn = new Button("Confirm & Unlock Cycle");
         confirmBtn.getStyleClass().add("primary-button");
         confirmBtn.setOnAction(e -> {
-            try {
-                repo.book(user, cycle.id(), selectedMinutes);
-                onSuccess.run();
-            } catch (Exception ex) {
-                Alert alert = new Alert(Alert.AlertType.ERROR, ex.getMessage(), ButtonType.OK);
-                alert.showAndWait();
-            }
+            confirmBtn.setDisable(true);
+            confirmBtn.setText("Unlocking & Connecting...");
+
+            AppExecutor.asyncThenFx(
+                    () -> {
+                        RentalRecord record = repo.book(user, cycle.id(), selectedMinutes);
+                        EventBus.getInstance().publish(new RentalStartedEvent(record, Instant.now()));
+                        return record;
+                    },
+                    record -> onSuccess.run(),
+                    error -> {
+                        confirmBtn.setDisable(false);
+                        confirmBtn.setText("Confirm & Unlock Cycle");
+                        Alert alert = new Alert(Alert.AlertType.ERROR, "Reservation error: " + error.getMessage(), ButtonType.OK);
+                        alert.showAndWait();
+                    }
+            );
         });
 
         row.getChildren().addAll(cancelBtn, confirmBtn);

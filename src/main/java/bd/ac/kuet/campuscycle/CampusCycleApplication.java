@@ -35,6 +35,25 @@ public final class CampusCycleApplication extends Application {
         this.stage = primaryStage;
         stage.setTitle("CampusCycle | KUET Smart Mobility");
 
+        // Observer Pattern: subscribe to domain events to update UI reactively
+        bd.ac.kuet.campuscycle.data.EventBus.getInstance().subscribe(
+                bd.ac.kuet.campuscycle.domain.event.RentalStartedEvent.class,
+                event -> javafx.application.Platform.runLater(() -> {
+                    if (appHeader != null && currentUser != null && currentUser.id().equals(event.rental().renterId())) {
+                        appHeader.setHasActiveRide(true);
+                    }
+                })
+        );
+
+        bd.ac.kuet.campuscycle.data.EventBus.getInstance().subscribe(
+                bd.ac.kuet.campuscycle.domain.event.RentalReturnedEvent.class,
+                event -> javafx.application.Platform.runLater(() -> {
+                    if (appHeader != null && currentUser != null && currentUser.id().equals(event.user().id())) {
+                        appHeader.setHasActiveRide(false);
+                    }
+                })
+        );
+
         showLogin();
 
         stage.setMinWidth(1080);

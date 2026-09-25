@@ -1,11 +1,18 @@
 package bd.ac.kuet.campuscycle.ui;
 
 import bd.ac.kuet.campuscycle.data.CampusRepository;
+import bd.ac.kuet.campuscycle.data.EventBus;
+import bd.ac.kuet.campuscycle.data.LocalDatabase;
+import bd.ac.kuet.campuscycle.domain.AvailabilityStatus;
 import bd.ac.kuet.campuscycle.domain.CampusUser;
 import bd.ac.kuet.campuscycle.domain.RentalRecord;
+import bd.ac.kuet.campuscycle.domain.event.RentalReturnedEvent;
+import bd.ac.kuet.campuscycle.service.AppExecutor;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -16,6 +23,15 @@ import javafx.util.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
 
+/**
+ * Production-ready Active Journey Cockpit.
+ * Implements:
+ * 1. Live telemetry ticker with speed, distance, fare, and duration
+ * 2. Slider control for simulated Pedal Assist / Virtual Cadence
+ * 3. ListView control for real-time sensor and geofence checkpoint logs
+ * 4. Multi-threaded asynchronous return processing with AppExecutor
+ * 5. Event-driven Observer pattern synchronization via EventBus
+ */
 public class ActiveJourneyView extends VBox {
 
     private final CampusUser user;
@@ -27,6 +43,12 @@ public class ActiveJourneyView extends VBox {
     private final Label fareLabel = new Label("BDT 20.00");
     private final Label speedLabel = new Label("18.4 km/h");
     private final Label distLabel = new Label("2.4 km");
+    private final Label assistModeLabel = new Label("Eco (Level 1)");
+
+    private final ObservableList<String> telemetryLogs = FXCollections.observableArrayList();
+    private final ListView<String> logListView = new ListView<>(telemetryLogs);
+
+    private double assistMultiplier = 1.0;
     private Timeline ticker;
 
     public ActiveJourneyView(CampusUser user,
@@ -50,8 +72,10 @@ public class ActiveJourneyView extends VBox {
             getChildren().addAll(
                     createHeader(active),
                     createTelemetryCockpit(active),
+                    createPedalAssistAndLogsSection(),
                     createReturnProtocol(active)
             );
+            initTelemetryLogs(active);
             startLiveTicker(active);
         }
 
@@ -116,7 +140,7 @@ public class ActiveJourneyView extends VBox {
         grid.setVgap(16);
 
         VBox c1 = createCockpitCard("ELAPSED TIME", timerLabel, "Ticking live from start", ThemeManager.ICON_CLOCK, "#0284C7");
-        VBox c2 = createCockpitCard("CURRENT TARIFF", fareLabel, "Subsidy applied", ThemeManager.ICON_SHIELD, "#10B981");
+        VBox c2 = createCockpitCard("CURRENT TARIFF", fareLabel, "25% Subsidy applied", ThemeManager.ICON_SHIELD, "#10B981");
         VBox c3 = createCockpitCard("ESTIMATED SPEED", speedLabel, "Hub telemetry sensor", ThemeManager.ICON_NAV, "#0EA5E9");
         VBox c4 = createCockpitCard("DISTANCE CYCLED", distLabel, "Campus odometer", ThemeManager.ICON_PIN, "#0284C7");
 
@@ -163,6 +187,78 @@ public class ActiveJourneyView extends VBox {
         return card;
     }
 
+    private HBox createPedalAssistAndLogsSection() {
+        HBox row = new HBox(16);
+        row.setAlignment(Pos.TOP_LEFT);
+
+        // Assist Level Slider Card
+        VBox sliderCard = new VBox(14);
+        sliderCard.getStyleClass().add("bento-card");
+        sliderCard.setPadding(new Insets(20));
+        HBox.setHgrow(sliderCard, Priority.ALWAYS);
+
+        HBox sliderHeader = new HBox();
+        Label sTitle = new Label("Smart Electric Assist & Throttle");
+        sTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700;");
+        Region sSp = new Region();
+        HBox.setHgrow(sSp, Priority.ALWAYS);
+        assistModeLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 800; -fx-text-fill: #0284C7;");
+        sliderHeader.getChildren().addAll(sTitle, sSp, assistModeLabel);
+
+        Slider assistSlider = new Slider(1, 3, 1);
+        assistSlider.setMajorTickUnit(1);
+        assistSlider.setSnapToTicks(true);
+        assistSlider.getStyleClass().add("slider");
+        assistSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            int level = (int) Math.round(newVal.doubleValue());
+            if (level == 1) {
+                assistMultiplier = 1.0;
+                assistModeLabel.setText("Eco (Level 1)");
+                addTelemetryLog("Pedal Assist set to Eco Mode (Optimal Battery)");
+            } else if (level == 2) {
+                assistMultiplier = 1.35;
+                assistModeLabel.setText("Cruise (Level 2)");
+                addTelemetryLog("Pedal Assist set to Cruise Mode (+35% Cadence)");
+            } else {
+                assistMultiplier = 1.75;
+                assistModeLabel.setText("Turbo (Level 3)");
+                addTelemetryLog("Pedal Assist set to Turbo Boost (+75% Power)");
+            }
+        });
+
+        HBox sliderTicks = new HBox();
+        Label t1 = new Label("Level 1: Eco");
+        t1.setStyle("-fx-font-size: 11px; -fx-opacity: 0.6;");
+        Region sp1 = new Region();
+        HBox.setHgrow(sp1, Priority.ALWAYS);
+        Label t2 = new Label("Level 2: Cruise");
+        t2.setStyle("-fx-font-size: 11px; -fx-opacity: 0.6;");
+        Region sp2 = new Region();
+        HBox.setHgrow(sp2, Priority.ALWAYS);
+        Label t3 = new Label("Level 3: Turbo");
+        t3.setStyle("-fx-font-size: 11px; -fx-opacity: 0.6;");
+        sliderTicks.getChildren().addAll(t1, sp1, t2, sp2, t3);
+
+        sliderCard.getChildren().addAll(sliderHeader, assistSlider, sliderTicks);
+
+        // Real-time Checkpoints ListView Card
+        VBox logsCard = new VBox(14);
+        logsCard.getStyleClass().add("bento-card");
+        logsCard.setPadding(new Insets(20));
+        HBox.setHgrow(logsCard, Priority.ALWAYS);
+
+        Label logsTitle = new Label("Live Journey & Geofence Checkpoints");
+        logsTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700;");
+
+        logListView.setPrefHeight(130);
+        logListView.getStyleClass().add("list-view");
+
+        logsCard.getChildren().addAll(logsTitle, logListView);
+
+        row.getChildren().addAll(sliderCard, logsCard);
+        return row;
+    }
+
     private VBox createReturnProtocol(RentalRecord active) {
         VBox card = new VBox(18);
         card.getStyleClass().add("bento-card");
@@ -194,7 +290,7 @@ public class ActiveJourneyView extends VBox {
 
         subBox.getChildren().addAll(dropLbl, hubCombo, c1, c2);
 
-        HBox bottom = new HBox();
+        HBox bottom = new HBox(12);
         bottom.setAlignment(Pos.CENTER_RIGHT);
 
         Button returnBtn = new Button("Complete Return & Lock Cycle");
@@ -207,14 +303,53 @@ public class ActiveJourneyView extends VBox {
                 a.showAndWait();
                 return;
             }
-            if (ticker != null) ticker.stop();
-            repo.returnRental(user, active.id());
-            onRideFinished.run();
+
+            returnBtn.setDisable(true);
+            returnBtn.setText("Returning & Locking...");
+
+            // Multi-threaded non-blocking return execution
+            AppExecutor.asyncThenFx(
+                    () -> {
+                        // 1. Supabase repository return
+                        repo.returnRental(user, active.id());
+                        // 2. SQLite local database update
+                        LocalDatabase.getInstance().updateRentalReturned(active.id());
+                        LocalDatabase.getInstance().updateCycleAvailability(active.cycleId(), AvailabilityStatus.AVAILABLE);
+                        // 3. EventBus Observer notification
+                        EventBus.getInstance().publish(new RentalReturnedEvent(user, active.id(), Instant.now()));
+                        return true;
+                    },
+                    success -> {
+                        if (ticker != null) ticker.stop();
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION, "Cycle successfully docked and locked at " + hubCombo.getValue() + ". Thank you for choosing KUET Green Mobility!", ButtonType.OK);
+                        alert.showAndWait();
+                        onRideFinished.run();
+                    },
+                    error -> {
+                        returnBtn.setDisable(false);
+                        returnBtn.setText("Complete Return & Lock Cycle");
+                        Alert alert = new Alert(Alert.AlertType.ERROR, "Return failed: " + error.getMessage(), ButtonType.OK);
+                        alert.showAndWait();
+                    }
+            );
         });
 
         bottom.getChildren().add(returnBtn);
         card.getChildren().addAll(h, subBox, bottom);
         return card;
+    }
+
+    private void initTelemetryLogs(RentalRecord active) {
+        telemetryLogs.add("• [00:00:00] Dock lock disengaged at station");
+        telemetryLogs.add("• [00:00:05] Smart sensor telemetry online");
+        telemetryLogs.add("• [00:00:12] GPS geofence: KUET Campus Active Zone");
+    }
+
+    private void addTelemetryLog(String msg) {
+        telemetryLogs.add(0, "• [" + timerLabel.getText() + "] " + msg);
+        if (telemetryLogs.size() > 15) {
+            telemetryLogs.remove(telemetryLogs.size() - 1);
+        }
     }
 
     private void startLiveTicker(RentalRecord active) {
@@ -230,11 +365,11 @@ public class ActiveJourneyView extends VBox {
 
             timerLabel.setText(String.format("%02d:%02d:%02d", hours, mins, secs));
 
-            double km = 0.8 + (elapsed / 45.0) * 0.12;
-            distLabel.setText(String.format("%.1f km", km));
+            double baseKm = 0.8 + (elapsed / 45.0) * 0.12;
+            distLabel.setText(String.format("%.1f km", baseKm * assistMultiplier));
 
-            double speed = 16.0 + Math.sin(elapsed / 10.0) * 4.5;
-            speedLabel.setText(String.format("%.1f km/h", speed));
+            double baseSpeed = 16.0 + Math.sin(elapsed / 10.0) * 4.5;
+            speedLabel.setText(String.format("%.1f km/h", baseSpeed * assistMultiplier));
 
             int elapsedMinutes = (int) Math.ceil(elapsed / 60.0);
             int basePoisha = 2000;

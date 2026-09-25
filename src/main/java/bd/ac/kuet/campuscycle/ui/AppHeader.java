@@ -212,4 +212,11 @@ public class AppHeader extends HBox {
     public void setLocationDisplay(String locationName) {
         locationBtn.setText("📍 " + locationName);
     }
+
+    public void setHasActiveRide(boolean hasActiveRide) {
+        navCapsule.getChildren().clear();
+        navButtons.clear();
+        setupNavCapsule(hasActiveRide);
+        setActivePage(activePage);
+    }
 }

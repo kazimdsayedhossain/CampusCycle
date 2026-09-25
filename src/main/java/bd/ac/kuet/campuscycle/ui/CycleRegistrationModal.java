@@ -33,7 +33,10 @@ public class CycleRegistrationModal extends StackPane {
 
     private final TextField labelField = new TextField();
     private final ComboBox<CycleType> typeCombo = new ComboBox<>();
-    private final ComboBox<CycleCondition> conditionCombo = new ComboBox<>();
+    private final RadioButton rbExcellent = new RadioButton("Brand New / Excellent");
+    private final RadioButton rbGood = new RadioButton("Good Condition");
+    private final RadioButton rbFair = new RadioButton("Fair / Minor Scratches");
+    private final ToggleGroup conditionGroup = new ToggleGroup();
     private final ComboBox<String> pickupCombo = new ComboBox<>();
     private final TextField phoneField = new TextField();
     private final TextField descField = new TextField();
@@ -93,10 +96,15 @@ public class CycleRegistrationModal extends StackPane {
 
         Label l3 = new Label("PHYSICAL CONDITION");
         l3.getStyleClass().add("metric-label");
-        conditionCombo.getItems().setAll(CycleCondition.values());
-        conditionCombo.setValue(CycleCondition.EXCELLENT);
-        conditionCombo.setMaxWidth(Double.MAX_VALUE);
-        conditionCombo.getStyleClass().add("modern-input");
+        rbExcellent.setToggleGroup(conditionGroup);
+        rbGood.setToggleGroup(conditionGroup);
+        rbFair.setToggleGroup(conditionGroup);
+        rbExcellent.setSelected(true);
+        rbExcellent.getStyleClass().add("radio-button");
+        rbGood.getStyleClass().add("radio-button");
+        rbFair.getStyleClass().add("radio-button");
+        HBox conditionBox = new HBox(12, rbExcellent, rbGood, rbFair);
+        conditionBox.setPadding(new Insets(4, 0, 4, 0));
 
         Label l4 = new Label("PICKUP / RETURN HUB");
         l4.getStyleClass().add("metric-label");
@@ -143,7 +151,7 @@ public class CycleRegistrationModal extends StackPane {
                 top,
                 l1, labelField,
                 l2, typeCombo,
-                l3, conditionCombo,
+                l3, conditionBox,
                 l4, pickupCombo,
                 l5, phoneField,
                 l6, descField,
@@ -167,6 +175,13 @@ public class CycleRegistrationModal extends StackPane {
             return;
         }
 
+        CycleCondition selectedCondition = CycleCondition.EXCELLENT;
+        if (rbGood.isSelected()) {
+            selectedCondition = CycleCondition.GOOD;
+        } else if (rbFair.isSelected()) {
+            selectedCondition = CycleCondition.FAIR;
+        }
+
         submitBtn.setDisable(true);
         submitBtn.setText("Registering Cycle...");
 
@@ -183,6 +198,7 @@ public class CycleRegistrationModal extends StackPane {
 
         final double finalLat = lat;
         final double finalLng = lng;
+        final CycleCondition finalCondition = selectedCondition;
 
         CycleItem newCycle = new CycleItem(
                 cycleIdStr,
@@ -190,7 +206,7 @@ public class CycleRegistrationModal extends StackPane {
                 user.displayName(),
                 label.trim(),
                 typeCombo.getValue(),
-                conditionCombo.getValue(),
+                finalCondition,
                 hub,
                 finalLat,
                 finalLng,
@@ -221,7 +237,7 @@ public class CycleRegistrationModal extends StackPane {
                             pstmt.setString(5, phone.trim());
                             pstmt.setString(6, label.trim());
                             pstmt.setString(7, typeCombo.getValue().name());
-                            pstmt.setString(8, conditionCombo.getValue().name());
+                            pstmt.setString(8, finalCondition.name());
                             pstmt.setString(9, hub);
                             pstmt.setDouble(10, finalLat);
                             pstmt.setDouble(11, finalLng);
