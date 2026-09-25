@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>KUET & Khulna Interactive Bing Road Map</title>
   
+  <!-- CRITICAL FIX: Force Leaflet to disable hardware-accelerated 3D CSS transforms
+       in JavaFX WebKit on Windows. This prevents tile scattering, misalignments, and black gaps. -->
+  <script>
+    window.L_DISABLE_3D = true;
+  </script>
+
   <!-- Offline-ready local Leaflet bundle -->
   <link rel="stylesheet" href="leaflet.css" />
   <script src="leaflet.js"></script>
@@ -21,7 +27,8 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #0A0F1D;
+      /* Seamless match with Microsoft Bing Road map ground color */
+      background: #F0EEEA;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     #map {
@@ -32,7 +39,7 @@
       bottom: 0;
       width: 100%;
       height: 100%;
-      background: #0A0F1D;
+      background: #F0EEEA;
     }
 
     /* Map HUD Floating Glass Cockpit */
@@ -48,7 +55,7 @@
       border-radius: 12px;
       padding: 10px 16px;
       color: #F8FAFC;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
       pointer-events: auto;
       max-width: 360px;
       transition: all 0.3s ease;
@@ -193,15 +200,15 @@
 
     /* Leaflet zoom controls styling for premium UI */
     .leaflet-bar {
-      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      border: 1px solid rgba(0, 0, 0, 0.15) !important;
       border-radius: 8px !important;
       overflow: hidden;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2) !important;
     }
     .leaflet-bar a {
-      background-color: rgba(15, 23, 42, 0.92) !important;
-      color: #F8FAFC !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+      background-color: rgba(255, 255, 255, 0.96) !important;
+      color: #0F172A !important;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
       width: 32px !important;
       height: 32px !important;
       line-height: 32px !important;
@@ -209,19 +216,6 @@
       font-weight: 700 !important;
     }
     .leaflet-bar a:hover {
-      background-color: #0284C7 !important;
-      color: #FFFFFF !important;
-    }
-    body.light-theme .leaflet-bar {
-      border: 1px solid rgba(0, 0, 0, 0.15) !important;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
-    }
-    body.light-theme .leaflet-bar a {
-      background-color: rgba(255, 255, 255, 0.95) !important;
-      color: #0F172A !important;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
-    }
-    body.light-theme .leaflet-bar a:hover {
       background-color: #0284C7 !important;
       color: #FFFFFF !important;
     }
@@ -316,22 +310,26 @@
         doubleClickZoom: true,
         touchZoom: true,
         boxZoom: true,
-        dragging: true
+        dragging: true,
+        preferCanvas: true
       });
 
       // Expose map globally for JavaFX controller zoom calls
       window.map = map;
 
-      // 2. Microsoft Bing Maps Road / Street Layer ONLY
-      bingRoadLayer = L.tileLayer('https://ecn.t{s}.tiles.virtualearth.net/tiles/r{quadkey}.jpeg?g=1', {
+      // 2. Microsoft Bing Maps Road / Street Layer ONLY (.png for perfect WebKit decoding)
+      bingRoadLayer = L.tileLayer('https://ecn.t{s}.tiles.virtualearth.net/tiles/r{quadkey}.png?g=1', {
         subdomains: ['0', '1', '2', '3'],
         attribution: '&copy; Microsoft Bing Maps',
-        maxZoom: 19
+        maxZoom: 19,
+        updateWhenZooming: false,
+        updateWhenIdle: true,
+        keepBuffer: 4
       });
       bingRoadLayer.getTileUrl = function(coords) {
         const quad = getBingQuadKey(coords.x, coords.y, coords.z);
-        const s = (coords.x + coords.y) % 4;
-        return `https://ecn.t${s}.tiles.virtualearth.net/tiles/r${quad}.jpeg?g=1`;
+        const s = Math.abs(coords.x + coords.y) % 4;
+        return `https://ecn.t${s}.tiles.virtualearth.net/tiles/r${quad}.png?g=1`;
       };
       bingRoadLayer.addTo(map);
 
@@ -364,7 +362,7 @@
       // Force layout invalidation after DOM attachment
       setTimeout(function() {
         if (map) map.invalidateSize();
-      }, 200);
+      }, 150);
 
       window.addEventListener('resize', function() {
         if (map) map.invalidateSize();

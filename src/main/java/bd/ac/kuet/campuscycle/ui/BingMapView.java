@@ -49,7 +49,9 @@ public class BingMapView extends StackPane {
         webEngine = webView.getEngine();
         webEngine.setJavaScriptEnabled(true);
         webEngine.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 CampusCycle/1.0");
-        webView.setStyle("-fx-background-color: transparent;");
+        webEngine.setOnError(event -> System.err.println("[BingMapView Error] " + event.getMessage()));
+        webEngine.setOnAlert(event -> System.out.println("[BingMapView Alert] " + event.getData()));
+        webView.setStyle("-fx-background-color: #F0EEEA;");
 
         // Responsive sizing
         webView.prefWidthProperty().bind(widthProperty());
