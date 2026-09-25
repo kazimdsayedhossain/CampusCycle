@@ -38,10 +38,18 @@ public class SupabaseCampusRepositoryTest {
         }
 
         SupabaseCampusRepository repo = new SupabaseCampusRepository();
-        List<CycleItem> catalog = repo.catalog(student);
-        if (catalog.isEmpty()) return;
+        // Clean up any existing active rental from prior runs
+        RentalRecord existing = repo.activeRental(student);
+        if (existing != null) {
+            repo.returnRental(student, existing.id());
+        }
 
-        CycleItem cycle = catalog.get(0);
+        List<CycleItem> catalog = repo.catalog(student);
+        CycleItem cycle = catalog.stream()
+                .filter(c -> c.availabilityStatus() == AvailabilityStatus.AVAILABLE)
+                .findFirst()
+                .orElse(null);
+        if (cycle == null) return;
         System.out.println("Booking cycle: " + cycle.id() + " (" + cycle.label() + ")");
 
         // Book cycle

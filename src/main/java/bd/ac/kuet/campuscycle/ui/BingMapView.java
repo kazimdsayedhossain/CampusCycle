@@ -3,12 +3,10 @@ package bd.ac.kuet.campuscycle.ui;
 import bd.ac.kuet.campuscycle.domain.CycleItem;
 import javafx.application.Platform;
 import javafx.concurrent.Worker;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.Tooltip;
-import javafx.scene.layout.*;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
@@ -20,9 +18,9 @@ import java.util.function.Consumer;
 
 /**
  * Production-ready BingMapView:
- * Pure Microsoft Bing Maps Virtual Earth Satellite (Hybrid) & Road imagery
- * rendered inside JavaFX WebView with automatic sizing synchronization,
- * offline-bundled Leaflet core, and bi-directional JavaScript reflection bridge.
+ * Pure Microsoft Bing Maps Road imagery rendered inside JavaFX WebView.
+ * Default centered directly on KUET campus with smooth mouse wheel zooming,
+ * standard zoom controls, offline-bundled Leaflet core, and bi-directional JavaScript reflection bridge.
  */
 public class BingMapView extends StackPane {
 
@@ -35,11 +33,6 @@ public class BingMapView extends StackPane {
 
     private final javafx.beans.value.ChangeListener<ThemeManager.Theme> themeListener;
     private final javafx.beans.value.ChangeListener<Worker.State> loadListener;
-
-    private final Button btnBingSatellite = new Button("🛰️ Bing Satellite");
-    private final Button btnBingRoad = new Button("🗺️ Bing Road");
-    private final Button btnCenterKuet = new Button("📍 KUET");
-    private final Button btnCenterKhulna = new Button("🏙️ Khulna");
 
     public BingMapView(List<CycleItem> availableCycles,
                        Consumer<String> onHubSelected,
@@ -62,23 +55,28 @@ public class BingMapView extends StackPane {
         webView.prefWidthProperty().bind(widthProperty());
         webView.prefHeightProperty().bind(heightProperty());
 
+        // Mouse wheel scroll handler: Natural zoom in and zoom out of KUET
+        webView.setOnScroll(event -> {
+            if (event.getDeltaY() > 0) {
+                webEngine.executeScript("if (window.map) window.map.zoomIn();");
+            } else if (event.getDeltaY() < 0) {
+                webEngine.executeScript("if (window.map) window.map.zoomOut();");
+            }
+            event.consume();
+        });
+
         // Loading overlay
         VBox loadingOverlay = new VBox(10);
         loadingOverlay.setAlignment(Pos.CENTER);
         loadingOverlay.setStyle("-fx-background-color: rgba(10, 15, 29, 0.85); -fx-background-radius: 14px;");
-        Label loadingLabel = new Label("Initializing Microsoft Bing Satellite Telemetry...");
+        Label loadingLabel = new Label("Loading Microsoft Bing Road Map...");
         loadingLabel.setStyle("-fx-text-fill: #0EA5E9; -fx-font-weight: 700; -fx-font-size: 13px;");
         loadingOverlay.getChildren().addAll(
                 ThemeManager.createIcon(ThemeManager.ICON_PIN, 28, Color.web("#0EA5E9")),
                 loadingLabel
         );
 
-        // Top-right layer pills
-        HBox layerPills = createLayerPills();
-        StackPane.setAlignment(layerPills, Pos.TOP_RIGHT);
-        StackPane.setMargin(layerPills, new Insets(14, 14, 0, 0));
-
-        getChildren().addAll(webView, loadingOverlay, layerPills);
+        getChildren().addAll(webView, loadingOverlay);
 
         // Invalidate map size on layout changes
         widthProperty().addListener((obs, oldVal, newVal) -> triggerInvalidateSize());
@@ -124,59 +122,6 @@ public class BingMapView extends StackPane {
         ThemeManager.themeProperty().addListener(themeListener);
     }
 
-    private HBox createLayerPills() {
-        HBox box = new HBox(6);
-        box.setAlignment(Pos.CENTER_RIGHT);
-        box.setStyle("-fx-background-color: rgba(15, 23, 42, 0.85); -fx-background-radius: 20px; -fx-padding: 4px 10px; -fx-border-color: rgba(255,255,255,0.12); -fx-border-radius: 20px;");
-
-        btnBingSatellite.getStyleClass().add("filter-chip-active");
-        btnBingSatellite.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
-        btnBingSatellite.setTooltip(new Tooltip("High-Resolution Microsoft Bing Hybrid Satellite Imagery"));
-        btnBingSatellite.setOnAction(e -> {
-            setSatelliteActive(true);
-            if (isLoaded) webEngine.executeScript("switchLayer('satellite')");
-        });
-
-        btnBingRoad.getStyleClass().add("filter-chip");
-        btnBingRoad.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
-        btnBingRoad.setTooltip(new Tooltip("Microsoft Bing Road & Street Navigation Map"));
-        btnBingRoad.setOnAction(e -> {
-            setSatelliteActive(false);
-            if (isLoaded) webEngine.executeScript("switchLayer('road')");
-        });
-
-        btnCenterKuet.getStyleClass().add("filter-chip");
-        btnCenterKuet.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
-        btnCenterKuet.setTooltip(new Tooltip("Center view on KUET campus"));
-        btnCenterKuet.setOnAction(e -> {
-            if (isLoaded) webEngine.executeScript("centerKuet()");
-        });
-
-        btnCenterKhulna.getStyleClass().add("filter-chip");
-        btnCenterKhulna.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
-        btnCenterKhulna.setTooltip(new Tooltip("View Khulna metropolitan roaming area"));
-        btnCenterKhulna.setOnAction(e -> {
-            if (isLoaded) webEngine.executeScript("centerKhulna()");
-        });
-
-        box.getChildren().addAll(btnBingSatellite, btnBingRoad, btnCenterKuet, btnCenterKhulna);
-        return box;
-    }
-
-    private void setSatelliteActive(boolean satellite) {
-        if (satellite) {
-            btnBingSatellite.getStyleClass().remove("filter-chip");
-            btnBingSatellite.getStyleClass().add("filter-chip-active");
-            btnBingRoad.getStyleClass().remove("filter-chip-active");
-            btnBingRoad.getStyleClass().add("filter-chip");
-        } else {
-            btnBingRoad.getStyleClass().remove("filter-chip");
-            btnBingRoad.getStyleClass().add("filter-chip-active");
-            btnBingSatellite.getStyleClass().remove("filter-chip-active");
-            btnBingSatellite.getStyleClass().add("filter-chip");
-        }
-    }
-
     private void triggerInvalidateSize() {
         if (!isLoaded) return;
         Platform.runLater(() -> {
@@ -210,6 +155,14 @@ public class BingMapView extends StackPane {
         if (isLoaded) {
             try {
                 webEngine.executeScript(String.format("if (window.CampusMap && window.CampusMap.focusLocation) window.CampusMap.focusLocation(%f, %f);", lat, lng));
+            } catch (Exception ignored) {}
+        }
+    }
+
+    public void centerKuet() {
+        if (isLoaded) {
+            try {
+                webEngine.executeScript("if (window.CampusMap && window.CampusMap.centerKuet) window.CampusMap.centerKuet();");
             } catch (Exception ignored) {}
         }
     }
