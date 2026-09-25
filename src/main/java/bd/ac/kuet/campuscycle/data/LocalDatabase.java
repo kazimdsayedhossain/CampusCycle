@@ -242,6 +242,27 @@ public class LocalDatabase {
         return Optional.empty();
     }
 
+    public Optional<CampusUser> getProfileByEmail(String email) {
+        String sql = "SELECT * FROM local_profiles WHERE LOWER(email) = LOWER(?) LIMIT 1;";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, email);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(new CampusUser(
+                        rs.getString("id"),
+                        rs.getString("display_name"),
+                        rs.getString("email"),
+                        Role.valueOf(rs.getString("role"))
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getProfileByEmail error: " + e.getMessage());
+        }
+        return Optional.empty();
+    }
+
     // ==========================================
     // UPDATE (U in CRUD)
     // ==========================================

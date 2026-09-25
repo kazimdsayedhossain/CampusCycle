@@ -79,7 +79,7 @@ All database migrations reside in `supabase/migrations/`.
 * **`ThemeManager.java`**: Central theme engine managing `DARK` and `LIGHT` mode states, reactive listeners, and SVG vector paths.
 * **`theme-dark.css` & `theme-light.css`**: Obsidian dark (`#0A0F1D`) and clean slate-light (`#F4F6F9`) stylesheets located in `src/main/resources/bd/ac/kuet/campuscycle/`.
 * **`AppHeader.java`**: Spatial top navigation bar with brand island, centered navigation pill capsule (`Dashboard`, `Fleet Catalog`, `Campus Map`, `Active Journey`, `Passbook`, `Admin Operations`), location chip, theme toggle button, settings button, and user profile chip.
-* **`CampusMapCanvas.java`**: Dual-theme interactive vector map fallback of KUET campus with 5 official hubs.
+* **`CampusMapView.java`**: Dedicated split-screen navigation radar implementing the Wheat Field UI reference with interactive station directory cards on the left and live Microsoft Bing Maps on the right.
 * **`DashboardView.java`**: Bento telemetry overview (Available fleet, Online hubs, Subsidy tier, Carbon emissions) with live Bing Map and quick reservation cards.
 * **`FleetCatalogView.java`**: Vehicle discovery with search input, category chips (`All Models`, `City Commuters`, `Road Racers`, `Electric Assisted`, `Cargo Utility`), `Available Only` checkbox, collapsible map toggle, and cycle cards.
 * **`ReservationModal.java`**: Tactile 15–180 min duration slider with live return time, route dropdowns, 25% student subsidy calculation, and unlock trigger.

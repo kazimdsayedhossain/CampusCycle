@@ -45,6 +45,10 @@ public final class ClientConfig {
         return configured;
     }
 
+    public static String get(String name) {
+        return value(name);
+    }
+
     private static Map<String, String> loadLocalValues() {
         Map<String, String> values = new HashMap<>();
         Path file = Path.of(System.getProperty("user.dir", "."), ".env");
@@ -57,9 +61,8 @@ public final class ClientConfig {
                 int separator = trimmed.indexOf('=');
                 if (separator <= 0) continue;
                 String key = trimmed.substring(0, separator).trim();
-                if (key.equals("SUPABASE_URL") || key.equals("SUPABASE_PUBLISHABLE_KEY") || key.equals("FREEROUTE_API_KEY")) {
-                    values.put(key, trimmed.substring(separator + 1).trim());
-                }
+                String val = trimmed.substring(separator + 1).trim();
+                values.put(key, val);
             }
         } catch (IOException ignored) {
             // The app will display the map configuration state instead of a filesystem error.

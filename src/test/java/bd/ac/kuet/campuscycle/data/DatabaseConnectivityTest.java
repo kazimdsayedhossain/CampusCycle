@@ -39,11 +39,11 @@ public class DatabaseConnectivityTest {
                 System.out.println("Error querying rate_cards: " + e.getMessage());
             }
 
-            // Check profiles
-            try (ResultSet rs = stmt.executeQuery("SELECT id, display_name, role FROM public.profiles LIMIT 5")) {
-                System.out.println("Profiles sample:");
+            // Check profiles and auth users
+            try (ResultSet rs = stmt.executeQuery("SELECT p.id, p.display_name, p.role, u.email FROM public.profiles p LEFT JOIN auth.users u ON u.id = p.id")) {
+                System.out.println("Profiles + Auth sample:");
                 while (rs.next()) {
-                    System.out.println(" - " + rs.getString("id") + " : " + rs.getString("display_name") + " (" + rs.getString("role") + ")");
+                    System.out.println(" - " + rs.getString("id") + " : " + rs.getString("display_name") + " (" + rs.getString("role") + ") email=" + rs.getString("email"));
                 }
             }
 

@@ -7,6 +7,7 @@ import bd.ac.kuet.campuscycle.domain.CycleItem;
 import bd.ac.kuet.campuscycle.domain.Role;
 import bd.ac.kuet.campuscycle.ui.*;
 import javafx.application.Application;
+import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -16,11 +17,12 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import java.io.IOException;
+import java.net.URL;
+
 public final class CampusCycleApplication extends Application {
 
     private CampusRepository repository = new bd.ac.kuet.campuscycle.data.InMemoryCampusRepository();
-    private final CampusUser student = new CampusUser("3d1e3d69-ffc6-494f-a42c-26eeb258b581", "Arafat Rahman", "arafat@kuet.ac.bd", Role.STUDENT);
-    private final CampusUser admin = new CampusUser("56d6f9dc-0ca7-4b49-9f9e-3c48a1b2089a", "KUET Cycle Office", "cycleoffice@kuet.ac.bd", Role.ADMIN);
     private BingMapView activeMapView;
     private DashboardView activeDashboard;
     private FleetCatalogView activeFleet;
@@ -62,6 +64,7 @@ public final class CampusCycleApplication extends Application {
     public void start(Stage primaryStage) {
         this.stage = primaryStage;
         stage.setTitle("CampusCycle | KUET Smart Mobility");
+        ThemeManager.setTheme(ThemeManager.Theme.LIGHT);
 
         // Observer Pattern: subscribe to domain events to update UI reactively
         bd.ac.kuet.campuscycle.data.EventBus.getInstance().subscribe(
@@ -96,11 +99,7 @@ public final class CampusCycleApplication extends Application {
             activeMapView.dispose();
             activeMapView = null;
         }
-        LoginView loginView = new LoginView(
-                this::openWorkspace,
-                () -> openWorkspace(student),
-                () -> openWorkspace(admin)
-        );
+        LoginView loginView = new LoginView(this::openWorkspace);
 
         rootStack = new StackPane(loginView);
         setupScene(rootStack, 1100, 740);
@@ -121,7 +120,6 @@ public final class CampusCycleApplication extends Application {
                 false,
                 this::navigateTo,
                 this::openSettings,
-                () -> openWorkspace(currentUser.role() == Role.ADMIN ? student : admin),
                 this::openLocationPicker
         );
 
@@ -297,10 +295,17 @@ public final class CampusCycleApplication extends Application {
         navigateTo("Campus Map");
     }
 
-    private void setupScene(StackPane root, double width, double height) {
-        scene = new Scene(root, width, height);
+    private void setupScene(StackPane content, double width, double height) {
+        try {
+            URL resource = getClass().getResource("/bd/ac/kuet/campuscycle/app-shell.fxml");
+            if (resource == null) throw new IOException("Application shell resource missing");
+            rootStack = FXMLLoader.load(resource);
+            rootStack.getChildren().add(content);
+        } catch (IOException exception) {
+            rootStack = content;
+        }
+        scene = new Scene(rootStack, width, height);
         applyActiveTheme();
-        ThemeManager.themeProperty().addListener((obs, o, n) -> applyActiveTheme());
         stage.setScene(scene);
     }
 

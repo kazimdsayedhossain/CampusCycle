@@ -5,7 +5,6 @@ import javafx.application.Platform;
 import javafx.concurrent.Worker;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
@@ -20,30 +19,27 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Production-ready BingMapView with dual-engine rendering:
- * 1. Microsoft Bing Maps Virtual Earth Satellite & Road imagery in JavaFX WebView
- * 2. High-precision native JavaFX Canvas vector radar (CampusMapCanvas) fallback
- * 3. 1-click engine toggle and instant station focus
- * 4. Zero-fail resilience: if WebView encounters any environment issue,
- *    CampusMapCanvas seamlessly displays without blank screens.
+ * Production-ready BingMapView:
+ * Pure Microsoft Bing Maps Virtual Earth Satellite (Hybrid) & Road imagery
+ * rendered inside JavaFX WebView with automatic sizing synchronization,
+ * offline-bundled Leaflet core, and bi-directional JavaScript reflection bridge.
  */
 public class BingMapView extends StackPane {
 
     private final WebView webView;
     private final WebEngine webEngine;
-    private final CampusMapCanvas vectorCanvas;
-    private final StackPane viewSwitcher = new StackPane();
 
     private final Consumer<String> onHubSelected;
     private final Consumer<String> onLocationChanged;
     private boolean isLoaded = false;
-    private boolean usingVectorCanvas = false;
 
     private final javafx.beans.value.ChangeListener<ThemeManager.Theme> themeListener;
     private final javafx.beans.value.ChangeListener<Worker.State> loadListener;
 
     private final Button btnBingSatellite = new Button("🛰️ Bing Satellite");
-    private final Button btnVectorRadar = new Button("⚡ Campus Vector");
+    private final Button btnBingRoad = new Button("🗺️ Bing Road");
+    private final Button btnCenterKuet = new Button("📍 KUET");
+    private final Button btnCenterKhulna = new Button("🏙️ Khulna");
 
     public BingMapView(List<CycleItem> availableCycles,
                        Consumer<String> onHubSelected,
@@ -55,21 +51,18 @@ public class BingMapView extends StackPane {
         setMinHeight(460);
         getStyleClass().add("map-canvas-card");
 
-        // Engine 1: JavaFX WebView (Bing Maps Virtual Earth)
+        // Microsoft Bing Maps WebView
         webView = new WebView();
         webEngine = webView.getEngine();
         webEngine.setJavaScriptEnabled(true);
+        webEngine.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 CampusCycle/1.0");
         webView.setStyle("-fx-background-color: transparent;");
 
-        // Engine 2: Native JavaFX Canvas Fallback
-        vectorCanvas = new CampusMapCanvas(availableCycles, onHubSelected, onLocationChanged);
-        vectorCanvas.setVisible(false);
-        vectorCanvas.setManaged(false);
+        // Responsive sizing
+        webView.prefWidthProperty().bind(widthProperty());
+        webView.prefHeightProperty().bind(heightProperty());
 
-        // Switcher container
-        viewSwitcher.getChildren().addAll(vectorCanvas, webView);
-
-        // Floating Loading Indicator
+        // Loading overlay
         VBox loadingOverlay = new VBox(10);
         loadingOverlay.setAlignment(Pos.CENTER);
         loadingOverlay.setStyle("-fx-background-color: rgba(10, 15, 29, 0.85); -fx-background-radius: 14px;");
@@ -80,19 +73,21 @@ public class BingMapView extends StackPane {
                 loadingLabel
         );
 
-        // Top-right Engine Switcher Pills
-        HBox enginePills = createEnginePills();
-        StackPane.setAlignment(enginePills, Pos.TOP_RIGHT);
-        StackPane.setMargin(enginePills, new Insets(14, 14, 0, 0));
+        // Top-right layer pills
+        HBox layerPills = createLayerPills();
+        StackPane.setAlignment(layerPills, Pos.TOP_RIGHT);
+        StackPane.setMargin(layerPills, new Insets(14, 14, 0, 0));
 
-        getChildren().addAll(viewSwitcher, loadingOverlay, enginePills);
+        getChildren().addAll(webView, loadingOverlay, layerPills);
+
+        // Invalidate map size on layout changes
+        widthProperty().addListener((obs, oldVal, newVal) -> triggerInvalidateSize());
+        heightProperty().addListener((obs, oldVal, newVal) -> triggerInvalidateSize());
 
         // Load the HTML
         URL mapUrl = getClass().getResource("/bd/ac/kuet/campuscycle/bing-map.html");
         if (mapUrl != null) {
             webEngine.load(mapUrl.toExternalForm());
-        } else {
-            switchToVectorMode();
         }
 
         loadListener = (obs, oldState, newState) -> {
@@ -108,12 +103,14 @@ public class BingMapView extends StackPane {
                     // Apply current theme + push live cycle count
                     updateMapTheme();
                     pushCycles(availableCycles);
+                    triggerInvalidateSize();
                 } catch (Exception e) {
-                    System.err.println("Note: Map bridge registered or using direct callbacks. " + e.getMessage());
+                    System.err.println("Note: Map bridge registration note: " + e.getMessage());
                 }
             } else if (newState == Worker.State.FAILED) {
                 loadingOverlay.setVisible(false);
-                switchToVectorMode();
+                loadingLabel.setText("Bing Map could not reach tile network.");
+                loadingLabel.setStyle("-fx-text-fill: #EF4444; -fx-font-weight: 700;");
             }
         };
         webEngine.getLoadWorker().stateProperty().addListener(loadListener);
@@ -127,49 +124,67 @@ public class BingMapView extends StackPane {
         ThemeManager.themeProperty().addListener(themeListener);
     }
 
-    private HBox createEnginePills() {
+    private HBox createLayerPills() {
         HBox box = new HBox(6);
         box.setAlignment(Pos.CENTER_RIGHT);
-        box.setStyle("-fx-background-color: rgba(15, 23, 42, 0.75); -fx-background-radius: 20px; -fx-padding: 4px 8px; -fx-border-color: rgba(255,255,255,0.12); -fx-border-radius: 20px;");
+        box.setStyle("-fx-background-color: rgba(15, 23, 42, 0.85); -fx-background-radius: 20px; -fx-padding: 4px 10px; -fx-border-color: rgba(255,255,255,0.12); -fx-border-radius: 20px;");
 
         btnBingSatellite.getStyleClass().add("filter-chip-active");
         btnBingSatellite.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
-        btnBingSatellite.setTooltip(new Tooltip("High-Resolution Microsoft Bing Satellite & Road Imagery"));
-        btnBingSatellite.setOnAction(e -> switchToBingMode());
+        btnBingSatellite.setTooltip(new Tooltip("High-Resolution Microsoft Bing Hybrid Satellite Imagery"));
+        btnBingSatellite.setOnAction(e -> {
+            setSatelliteActive(true);
+            if (isLoaded) webEngine.executeScript("switchLayer('satellite')");
+        });
 
-        btnVectorRadar.getStyleClass().add("filter-chip");
-        btnVectorRadar.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
-        btnVectorRadar.setTooltip(new Tooltip("High-Precision Offline Native JavaFX Vector Canvas"));
-        btnVectorRadar.setOnAction(e -> switchToVectorMode());
+        btnBingRoad.getStyleClass().add("filter-chip");
+        btnBingRoad.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
+        btnBingRoad.setTooltip(new Tooltip("Microsoft Bing Road & Street Navigation Map"));
+        btnBingRoad.setOnAction(e -> {
+            setSatelliteActive(false);
+            if (isLoaded) webEngine.executeScript("switchLayer('road')");
+        });
 
-        box.getChildren().addAll(btnBingSatellite, btnVectorRadar);
+        btnCenterKuet.getStyleClass().add("filter-chip");
+        btnCenterKuet.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
+        btnCenterKuet.setTooltip(new Tooltip("Center view on KUET campus"));
+        btnCenterKuet.setOnAction(e -> {
+            if (isLoaded) webEngine.executeScript("centerKuet()");
+        });
+
+        btnCenterKhulna.getStyleClass().add("filter-chip");
+        btnCenterKhulna.setStyle("-fx-font-size: 11px; -fx-padding: 4px 10px;");
+        btnCenterKhulna.setTooltip(new Tooltip("View Khulna metropolitan roaming area"));
+        btnCenterKhulna.setOnAction(e -> {
+            if (isLoaded) webEngine.executeScript("centerKhulna()");
+        });
+
+        box.getChildren().addAll(btnBingSatellite, btnBingRoad, btnCenterKuet, btnCenterKhulna);
         return box;
     }
 
-    private void switchToBingMode() {
-        usingVectorCanvas = false;
-        webView.setVisible(true);
-        webView.setManaged(true);
-        vectorCanvas.setVisible(false);
-        vectorCanvas.setManaged(false);
-
-        btnBingSatellite.getStyleClass().remove("filter-chip");
-        btnBingSatellite.getStyleClass().add("filter-chip-active");
-        btnVectorRadar.getStyleClass().remove("filter-chip-active");
-        btnVectorRadar.getStyleClass().add("filter-chip");
+    private void setSatelliteActive(boolean satellite) {
+        if (satellite) {
+            btnBingSatellite.getStyleClass().remove("filter-chip");
+            btnBingSatellite.getStyleClass().add("filter-chip-active");
+            btnBingRoad.getStyleClass().remove("filter-chip-active");
+            btnBingRoad.getStyleClass().add("filter-chip");
+        } else {
+            btnBingRoad.getStyleClass().remove("filter-chip");
+            btnBingRoad.getStyleClass().add("filter-chip-active");
+            btnBingSatellite.getStyleClass().remove("filter-chip-active");
+            btnBingSatellite.getStyleClass().add("filter-chip");
+        }
     }
 
-    private void switchToVectorMode() {
-        usingVectorCanvas = true;
-        webView.setVisible(false);
-        webView.setManaged(false);
-        vectorCanvas.setVisible(true);
-        vectorCanvas.setManaged(true);
-
-        btnVectorRadar.getStyleClass().remove("filter-chip");
-        btnVectorRadar.getStyleClass().add("filter-chip-active");
-        btnBingSatellite.getStyleClass().remove("filter-chip-active");
-        btnBingSatellite.getStyleClass().add("filter-chip");
+    private void triggerInvalidateSize() {
+        if (!isLoaded) return;
+        Platform.runLater(() -> {
+            try {
+                webEngine.executeScript("if (window.CampusMap && window.CampusMap.invalidateSize) window.CampusMap.invalidateSize();");
+            } catch (Exception ignored) {
+            }
+        });
     }
 
     /** Push live approved/available cycles to JS. */
@@ -199,15 +214,11 @@ public class BingMapView extends StackPane {
         }
     }
 
-    /** Release WebView + listeners to prevent leaks on navigation. */
-    public void dispose() {
+    public void setFocusLocation(double lat, double lng) {
+        if (!isLoaded) return;
         try {
-            webEngine.getLoadWorker().stateProperty().removeListener(loadListener);
-            ThemeManager.themeProperty().removeListener(themeListener);
-            vectorCanvas.dispose();
-            webEngine.load(null);
-        } catch (Exception ignored) {
-        }
+            webEngine.executeScript(String.format("if (window.CampusMap && window.CampusMap.setUserLocation) window.CampusMap.setUserLocation(%f, %f);", lat, lng));
+        } catch (Exception ignored) {}
     }
 
     private void updateMapTheme() {
@@ -219,11 +230,14 @@ public class BingMapView extends StackPane {
         }
     }
 
-    public void setFocusLocation(double lat, double lng) {
-        if (!isLoaded) return;
+    /** Release WebView + listeners to prevent leaks on navigation. */
+    public void dispose() {
         try {
-            webEngine.executeScript(String.format("if (window.CampusMap) window.CampusMap.setUserLocation(%f, %f);", lat, lng));
-        } catch (Exception ignored) {}
+            webEngine.getLoadWorker().stateProperty().removeListener(loadListener);
+            ThemeManager.themeProperty().removeListener(themeListener);
+            webEngine.load(null);
+        } catch (Exception ignored) {
+        }
     }
 
     /**

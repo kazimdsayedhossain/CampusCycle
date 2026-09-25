@@ -47,7 +47,7 @@ public final class InMemoryCampusRepository implements CampusRepository {
                 ReviewStatus.APPROVED, AvailabilityStatus.AVAILABLE
         ));
         cycles.add(new CycleItem(
-                "C-106", "demo-student", "Arafat Rahman", "Daily rider",
+                "C-106", "3d1e3d69-ffc6-494f-a42c-26eeb258b581", "Arafat Rahman", "Daily rider",
                 CycleType.CITY_BIKE, CycleCondition.GOOD, "Hall Gate",
                 22.9045, 89.5060, "Student listing awaiting physical inspection.",
                 ReviewStatus.PENDING_REVIEW, AvailabilityStatus.AVAILABLE

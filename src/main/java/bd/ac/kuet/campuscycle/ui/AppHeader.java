@@ -6,6 +6,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -25,26 +27,23 @@ public class AppHeader extends HBox {
     private final CampusUser user;
     private final Consumer<String> onNavigate;
     private final Runnable onOpenSettings;
-    private final Runnable onToggleRole;
     private final Runnable onSelectLocation;
 
     private final HBox navCapsule = new HBox(4);
     private final List<Button> navButtons = new ArrayList<>();
     private String activePage = "Dashboard";
     private final Button locationBtn = new Button("Central Field");
-    private final Button themeToggleBtn = new Button();
     private final Circle activeRideDot = new Circle(4, Color.web("#10B981"));
+    private final MenuButton moreMenu = new MenuButton("More");
 
     public AppHeader(CampusUser user,
                      boolean hasActiveRide,
                      Consumer<String> onNavigate,
                      Runnable onOpenSettings,
-                     Runnable onToggleRole,
                      Runnable onSelectLocation) {
         this.user = user;
         this.onNavigate = onNavigate;
         this.onOpenSettings = onOpenSettings;
-        this.onToggleRole = onToggleRole;
         this.onSelectLocation = onSelectLocation;
 
         getStyleClass().add("app-header");
@@ -69,8 +68,6 @@ public class AppHeader extends HBox {
 
         getChildren().addAll(brand, leftSpacer, navCapsule, rightSpacer, controls);
 
-        updateThemeIcon();
-        ThemeManager.themeProperty().addListener((obs, o, n) -> updateThemeIcon());
     }
 
     private HBox createBrandIsland() {
@@ -97,30 +94,24 @@ public class AppHeader extends HBox {
         navCapsule.getStyleClass().add("nav-capsule");
         navCapsule.setAlignment(Pos.CENTER);
 
-        addNavPill("Dashboard", null);
-        addNavPill("Fleet Catalog", null);
-        addNavPill("Campus Map", null);
+        addNavPill("Dashboard", "Dashboard", null);
+        addNavPill("Fleet Catalog", "Find cycles", null);
+        addNavPill("Campus Map", "Campus map", null);
 
         HBox activeJourneyGraphic = new HBox(6);
         activeJourneyGraphic.setAlignment(Pos.CENTER);
         Label ajLabel = new Label("Active Journey");
         if (hasActiveRide) {
             activeJourneyGraphic.getChildren().addAll(activeRideDot, ajLabel);
-            addNavPill("Active Journey", activeJourneyGraphic);
+            addNavPill("Active Journey", "", activeJourneyGraphic);
         } else {
-            addNavPill("Active Journey", null);
+            addNavPill("Active Journey", "Ride", null);
         }
-
-        addNavPill("Passbook", null);
-        addNavPill("Support", null);
-
-        if (user.role() == Role.ADMIN) {
-            addNavPill("Admin Operations", null);
-        }
+        addMoreNavigation();
     }
 
-    private void addNavPill(String pageName, javafx.scene.Node customGraphic) {
-        Button btn = new Button(pageName);
+    private void addNavPill(String pageName, String buttonLabel, javafx.scene.Node customGraphic) {
+        Button btn = new Button(buttonLabel);
         if (customGraphic != null) {
             btn.setText("");
             btn.setGraphic(customGraphic);
@@ -136,6 +127,21 @@ public class AppHeader extends HBox {
         ThemeManager.applySpringHover(btn);
         navButtons.add(btn);
         navCapsule.getChildren().add(btn);
+    }
+
+    private void addMoreNavigation() {
+        moreMenu.getStyleClass().setAll("nav-menu");
+        moreMenu.getItems().clear();
+        addMenuItem("Passbook");
+        addMenuItem("Support");
+        if (user.role() == Role.ADMIN) addMenuItem("Admin Operations");
+        navCapsule.getChildren().add(moreMenu);
+    }
+
+    private void addMenuItem(String pageName) {
+        MenuItem item = new MenuItem(pageName);
+        item.setOnAction(event -> onNavigate.accept(pageName));
+        moreMenu.getItems().add(item);
     }
 
     public void setActivePage(String pageName) {
@@ -154,6 +160,9 @@ public class AppHeader extends HBox {
                 btn.getStyleClass().add("nav-pill-active");
             }
         }
+        boolean morePage = List.of("Passbook", "Support", "Admin Operations").contains(pageName);
+        moreMenu.getStyleClass().remove("nav-menu-active");
+        if (morePage) moreMenu.getStyleClass().add("nav-menu-active");
     }
 
     private HBox createRightControls() {
@@ -167,15 +176,10 @@ public class AppHeader extends HBox {
         });
         ThemeManager.applySpringHover(locationBtn);
 
-        // Theme Switcher Button
-        themeToggleBtn.getStyleClass().add("action-icon-btn");
-        themeToggleBtn.setOnAction(e -> ThemeManager.toggleTheme());
-        ThemeManager.applySpringHover(themeToggleBtn);
-
         // Settings Button
         Button settingsBtn = ThemeManager.createIconButton(ThemeManager.ICON_SETTINGS, 16, "action-icon-btn", onOpenSettings);
 
-        // User Profile Chip (with 1-click test role switcher)
+        // User profile summary
         HBox userChip = new HBox(8);
         userChip.setAlignment(Pos.CENTER_LEFT);
         userChip.getStyleClass().add("user-chip");
@@ -195,17 +199,8 @@ public class AppHeader extends HBox {
         userChip.setOnMouseClicked(null);
         ThemeManager.applySpringHover(userChip);
 
-        right.getChildren().addAll(locationBtn, themeToggleBtn, settingsBtn, userChip);
+        right.getChildren().addAll(locationBtn, settingsBtn, userChip);
         return right;
-    }
-
-    private void updateThemeIcon() {
-        boolean dark = ThemeManager.isDark();
-        themeToggleBtn.setGraphic(ThemeManager.createIcon(
-                dark ? ThemeManager.ICON_SUN : ThemeManager.ICON_MOON,
-                15,
-                Color.web(dark ? "#F59E0B" : "#0284C7")
-        ));
     }
 
     public void setLocationDisplay(String locationName) {

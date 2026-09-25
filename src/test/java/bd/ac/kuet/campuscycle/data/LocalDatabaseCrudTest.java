@@ -39,7 +39,7 @@ public class LocalDatabaseCrudTest {
             "KUET Central Library",
             22.9009,
             89.5016,
-            "SQLite CRUD demonstration cycle",
+            "SQLite CRUD test cycle",
             ReviewStatus.APPROVED,
             AvailabilityStatus.AVAILABLE
         );

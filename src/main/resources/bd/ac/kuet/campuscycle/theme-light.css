@@ -63,6 +63,16 @@
     -fx-text-fill: #FFFFFF;
     -fx-font-weight: 700;
 }
+.nav-menu {
+    -fx-background-color: transparent;
+    -fx-text-fill: #4B5563;
+    -fx-font-size: 13px; -fx-font-weight: 600;
+    -fx-background-radius: 999px;
+    -fx-padding: 7px 14px;
+    -fx-cursor: hand;
+}
+.nav-menu:hover { -fx-text-fill: #000000; -fx-background-color: #E2E8F0; }
+.nav-menu-active { -fx-background-color: #000000; -fx-text-fill: #FFFFFF; }
 
 /* Status Chips */
 .location-pill {

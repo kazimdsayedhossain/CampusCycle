@@ -2,16 +2,38 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>KUET & Khulna City Interactive Bing Map</title>
   
-  <!-- Locally bundled Leaflet CSS & JS - 100% offline-ready & CDN-independent -->
+  <!-- Offline-ready local Leaflet bundle -->
   <link rel="stylesheet" href="leaflet.css" />
   <script src="leaflet.js"></script>
 
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body, #map { height: 100%; width: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; background: #0A0F1D; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #0A0F1D;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    #map {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      background: #0A0F1D;
+    }
 
     /* Map HUD Floating Glass Cockpit */
     .map-hud {
@@ -247,7 +269,7 @@
     </div>
     <div class="hud-coords" id="hudCoords">22.9009° N, 89.5016° E</div>
     <div class="hud-info" id="hudInfo">
-      Click anywhere to set your location pin. Calculates walking time and discovers nearest cycles across KUET & Khulna city.
+      Click anywhere to set your location pin. Calculates walking distance and connects with campus hubs and Khulna city zones.
     </div>
   </div>
 
@@ -255,7 +277,6 @@
   <div class="map-controls">
     <button class="control-btn active" id="btnSatellite" onclick="switchLayer('satellite')">🛰️ Bing Satellite</button>
     <button class="control-btn" id="btnRoad" onclick="switchLayer('road')">🗺️ Bing Road</button>
-    <button class="control-btn" id="btnDark" onclick="switchLayer('dark')">🌓 Dark Radar</button>
     <button class="control-btn" id="btnCenterKuet" onclick="centerKuet()">📍 Center KUET</button>
     <button class="control-btn" id="btnCenterKhulna" onclick="centerKhulna()">🏙️ Khulna City</button>
   </div>
@@ -283,10 +304,10 @@
     // Khulna City Roaming Checkpoints & Partner Zones
     const KHULNA_ZONES = [
       { id: "zone-1", name: "Fulbarigate Transit Hub", lat: 22.8950, lng: 89.5040, desc: "Direct KUET link & market connection" },
-      { id: "zone-2", name: "Daulatpur Railway & Terminal", lat: 22.8700, lng: 89.5200, desc: "Midway Khulna transit corridor" },
-      { id: "zone-3", name: "Khalishpur Commercial Gate", lat: 22.8550, lng: 89.5300, desc: "Residential & shopping corridor" },
-      { id: "zone-4", name: "Boyra General Hospital", lat: 22.8400, lng: 89.5350, desc: "Civic center & transit intersection" },
-      { id: "zone-5", name: "Sonadanga Central Bus Terminal", lat: 22.8180, lng: 89.5530, desc: "Inter-district bus access hub" },
+      { id: "zone-2", name: "Daulatpur Terminal", lat: 22.8700, lng: 89.5200, desc: "Midway Khulna transit corridor" },
+      { id: "zone-3", name: "Khalishpur Commercial", lat: 22.8550, lng: 89.5300, desc: "Residential & shopping corridor" },
+      { id: "zone-4", name: "Boyra Civic Center", lat: 22.8400, lng: 89.5350, desc: "Civic center & hospital intersection" },
+      { id: "zone-5", name: "Sonadanga Bus Terminal", lat: 22.8180, lng: 89.5530, desc: "Inter-district bus access terminal" },
       { id: "zone-6", name: "Shibbari Circle (City Core)", lat: 22.8150, lng: 89.5580, desc: "Downtown commercial center" },
       { id: "zone-7", name: "Royal Mor / Rupsha Riverfront", lat: 22.8100, lng: 89.5640, desc: "Khulna riverfront & cultural district" }
     ];
@@ -306,7 +327,7 @@
     ];
 
     let map;
-    let bingSatelliteLayer, bingRoadLayer, darkRadarLayer, osmLayer;
+    let bingHybridLayer, bingRoadLayer;
     let currentLayer;
     let hubMarkers = [];
     let liveCycleMarkers = [];
@@ -328,6 +349,8 @@
     }
 
     function initMap() {
+      if (map) return;
+
       // 1. Initialize Leaflet Map
       map = L.map('map', {
         center: KUET_CENTER,
@@ -337,16 +360,16 @@
         zoomControl: false
       });
 
-      // 2. Microsoft Bing Maps Satellite / Aerial Layer (via Virtual Earth CDN)
-      bingSatelliteLayer = L.tileLayer('https://ecn.t{s}.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=1', {
+      // 2. Microsoft Bing Maps Hybrid (Aerial Satellite + Streets/Labels)
+      bingHybridLayer = L.tileLayer('https://ecn.t{s}.tiles.virtualearth.net/tiles/h{quadkey}.jpeg?g=1', {
         subdomains: ['0', '1', '2', '3'],
         attribution: '&copy; Microsoft Bing Maps &bull; DigitalGlobe',
         maxZoom: 19
       });
-      bingSatelliteLayer.getTileUrl = function(coords) {
+      bingHybridLayer.getTileUrl = function(coords) {
         const quad = getBingQuadKey(coords.x, coords.y, coords.z);
         const s = (coords.x + coords.y) % 4;
-        return `https://ecn.t${s}.tiles.virtualearth.net/tiles/a${quad}.jpeg?g=1`;
+        return `https://ecn.t${s}.tiles.virtualearth.net/tiles/h${quad}.jpeg?g=1`;
       };
 
       // 3. Microsoft Bing Maps Road / Street Layer
@@ -361,24 +384,11 @@
         return `https://ecn.t${s}.tiles.virtualearth.net/tiles/r${quad}.jpeg?g=1`;
       };
 
-      // 4. CartoDB Dark Matter / Night Radar Layer
-      darkRadarLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        subdomains: 'abcd',
-        attribution: '&copy; OpenStreetMap &bull; &copy; CARTO',
-        maxZoom: 19
-      });
-
-      // 5. OpenStreetMap Standard Layer (Fallback)
-      osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
-      });
-
-      // Default Layer: Bing Satellite
-      currentLayer = bingSatelliteLayer;
+      // Default Layer: Bing Hybrid (Satellite with Street Labels)
+      currentLayer = bingHybridLayer;
       currentLayer.addTo(map);
 
-      // Re-position zoom control to bottom right
+      // Zoom control in bottom right
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
       // Draw Khulna Metropolitan Roaming Geofence
@@ -403,27 +413,32 @@
       map.on('click', function(e) {
         setUserPin(e.latlng.lat, e.latlng.lng, true);
       });
+
+      // Force layout invalidation after DOM attachment
+      setTimeout(function() {
+        if (map) map.invalidateSize();
+      }, 200);
+
+      window.addEventListener('resize', function() {
+        if (map) map.invalidateSize();
+      });
     }
 
     function switchLayer(type) {
       if (!map) return;
-      map.removeLayer(currentLayer);
+      if (currentLayer) map.removeLayer(currentLayer);
 
-      document.querySelectorAll('.control-btn').forEach(b => {
-        if (b.id.startsWith('btn')) b.classList.remove('active');
-      });
+      const btnSat = document.getElementById('btnSatellite');
+      const btnRd = document.getElementById('btnRoad');
+      if (btnSat) btnSat.classList.remove('active');
+      if (btnRd) btnRd.classList.remove('active');
 
       if (type === 'satellite') {
-        currentLayer = bingSatelliteLayer;
-        document.getElementById('btnSatellite').classList.add('active');
-      } else if (type === 'road') {
-        currentLayer = bingRoadLayer;
-        document.getElementById('btnRoad').classList.add('active');
-      } else if (type === 'dark') {
-        currentLayer = darkRadarLayer;
-        document.getElementById('btnDark').classList.add('active');
+        currentLayer = bingHybridLayer;
+        if (btnSat) btnSat.classList.add('active');
       } else {
-        currentLayer = osmLayer;
+        currentLayer = bingRoadLayer;
+        if (btnRd) btnRd.classList.add('active');
       }
       currentLayer.addTo(map);
     }
@@ -513,12 +528,17 @@
       const walkMinutes = Math.max(1, Math.round(distMeters / 75));
 
       // Update HUD
-      document.getElementById('hudCoords').innerText = `${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`;
-      document.getElementById('hudInfo').innerHTML = `
-        <strong>Nearest Station:</strong> ${nearestHub.name}<br>
-        <strong>Distance:</strong> ${distMeters}m (~${walkMinutes} min walk)<br>
-        <span style="color:#10B981; font-weight:700;">✓ ${nearestHub.cycles} bicycles available</span>
-      `;
+      const coordsElem = document.getElementById('hudCoords');
+      if (coordsElem) coordsElem.innerText = `${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`;
+      
+      const infoElem = document.getElementById('hudInfo');
+      if (infoElem) {
+        infoElem.innerHTML = `
+          <strong>Nearest Station:</strong> ${nearestHub.name}<br>
+          <strong>Distance:</strong> ${distMeters}m (~${walkMinutes} min walk)<br>
+          <span style="color:#10B981; font-weight:700;">✓ ${nearestHub.cycles} bicycles available</span>
+        `;
+      }
 
       // Draw dashed guidance line to nearest hub
       if (routeLine) {
@@ -605,9 +625,6 @@
       setTheme: function(themeMode) {
         currentTheme = (themeMode === 'DARK') ? 'dark' : 'light';
         document.body.className = currentTheme + '-theme';
-        if (currentLayer === darkRadarLayer && currentTheme === 'light') {
-          switchLayer('satellite');
-        }
       },
       setUserLocation: function(lat, lng) {
         setUserPin(lat, lng, false);
@@ -616,6 +633,11 @@
         if (map) {
           map.flyTo([lat, lng], 16, { duration: 1.0 });
           setUserPin(lat, lng, false);
+        }
+      },
+      invalidateSize: function() {
+        if (map) {
+          map.invalidateSize();
         }
       }
     };

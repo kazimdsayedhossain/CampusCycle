@@ -27,12 +27,11 @@ public class SettingsModal extends StackPane {
         sheet.setPadding(new Insets(28));
 
         HBox header = createHeader();
-        VBox appearance = createAppearanceSection();
         VBox hubPref = createHubPreferenceSection();
         VBox notifications = createNotificationsSection();
         VBox account = createAccountSection();
 
-        sheet.getChildren().addAll(header, appearance, hubPref, notifications, account);
+        sheet.getChildren().addAll(header, hubPref, notifications, account);
         getChildren().add(sheet);
 
         ThemeManager.applyFadeIn(this);
@@ -63,48 +62,6 @@ public class SettingsModal extends StackPane {
         return row;
     }
 
-    private VBox createAppearanceSection() {
-        VBox box = new VBox(10);
-        Label label = new Label("APPEARANCE THEME");
-        label.getStyleClass().add("metric-label");
-
-        HBox toggleRow = new HBox(12);
-        toggleRow.setAlignment(Pos.CENTER_LEFT);
-
-        Button lightBtn = new Button("Pure Light");
-        Button darkBtn = new Button("Obsidian Dark");
-
-        Runnable updateActive = () -> {
-            boolean dark = ThemeManager.isDark();
-            lightBtn.getStyleClass().removeAll("primary-button", "secondary-button");
-            darkBtn.getStyleClass().removeAll("primary-button", "secondary-button");
-
-            if (dark) {
-                darkBtn.getStyleClass().add("primary-button");
-                lightBtn.getStyleClass().add("secondary-button");
-            } else {
-                lightBtn.getStyleClass().add("primary-button");
-                darkBtn.getStyleClass().add("secondary-button");
-            }
-        };
-
-        lightBtn.setOnAction(e -> {
-            ThemeManager.setTheme(ThemeManager.Theme.LIGHT);
-            updateActive.run();
-        });
-
-        darkBtn.setOnAction(e -> {
-            ThemeManager.setTheme(ThemeManager.Theme.DARK);
-            updateActive.run();
-        });
-
-        updateActive.run();
-        ThemeManager.themeProperty().addListener((obs, o, n) -> updateActive.run());
-
-        toggleRow.getChildren().addAll(lightBtn, darkBtn);
-        box.getChildren().addAll(label, toggleRow);
-        return box;
-    }
 
     private VBox createHubPreferenceSection() {
         VBox box = new VBox(8);

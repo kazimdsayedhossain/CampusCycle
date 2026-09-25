@@ -56,7 +56,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
             }
 
             if (items.isEmpty()) {
-                // If database table is empty, merge with fallback fleet for demonstration
+                // If database table is empty, merge with fallback fleet
                 return fallback.catalog(user);
             }
             return items;
@@ -237,25 +237,25 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
                 String insertSql = """
                         INSERT INTO public.rentals
-                        (id, cycle_id, renter_id, rate_card_id, rate_card_version, quoted_amount_poisha, requested_minutes, state, started_at, idempotency_key)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?);
+                        (id, cycle_id, renter_id, rate_card_version, quoted_amount_poisha, requested_minutes, state, started_at, due_at, currency, idempotency_key)
+                        VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, 'BDT', ?);
                         """;
 
                 try (PreparedStatement ins = conn.prepareStatement(insertSql)) {
                     ins.setObject(1, rentalId);
                     ins.setObject(2, UUID.fromString(cycleId));
                     ins.setObject(3, UUID.fromString(renter.id()));
-                    ins.setObject(4, rateCardId);
-                    ins.setInt(5, rateVersion);
-                    ins.setLong(6, (long) totalPoisha);
-                    ins.setInt(7, minutes);
-                    ins.setTimestamp(8, nowTs);
+                    ins.setInt(4, rateVersion);
+                    ins.setLong(5, (long) totalPoisha);
+                    ins.setInt(6, minutes);
+                    ins.setTimestamp(7, nowTs);
+                    ins.setTimestamp(8, dueTs);
                     ins.setObject(9, idempotencyKey);
                     ins.executeUpdate();
                 }
 
                 // 5. Create payment record UNPAID until provider webhook
-                String paySql = "INSERT INTO public.payment_records (id, rental_id, amount_poisha, state) VALUES (?, ?, ?, 'UNPAID')";
+                String paySql = "INSERT INTO public.payment_records (id, rental_id, amount_poisha, currency, state) VALUES (?, ?, ?, 'BDT', 'UNPAID')";
                 try (PreparedStatement pStmt = conn.prepareStatement(paySql)) {
                     pStmt.setObject(1, UUID.randomUUID());
                     pStmt.setObject(2, rentalId);
@@ -272,7 +272,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
                 // 7. Record audit event
                 try (PreparedStatement aStmt = conn.prepareStatement(
-                        "INSERT INTO public.audit_events (actor_id, entity_type, entity_id, action, details) VALUES (?, 'RENTAL', ?, 'STARTED', jsonb_build_object('minutes', ?::int, 'poisha', ?::int))")) {
+                        "INSERT INTO public.audit_events (actor_id, object_type, object_id, action, details) VALUES (?, 'RENTAL', ?, 'STARTED', jsonb_build_object('minutes', ?::int, 'poisha', ?::int))")) {
                     aStmt.setObject(1, UUID.fromString(renter.id()));
                     aStmt.setObject(2, rentalId);
                     aStmt.setInt(3, minutes);
@@ -353,7 +353,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
                 // Insert audit event
                 try (PreparedStatement aStmt = conn.prepareStatement(
-                        "INSERT INTO public.audit_events (actor_id, entity_type, entity_id, action, details) VALUES (?, 'RENTAL', ?, 'RETURNED', '{}'::jsonb)")) {
+                        "INSERT INTO public.audit_events (actor_id, object_type, object_id, action, details) VALUES (?, 'RENTAL', ?, 'RETURNED', '{}'::jsonb)")) {
                     aStmt.setObject(1, UUID.fromString(renter.id()));
                     aStmt.setObject(2, UUID.fromString(rentalId));
                     aStmt.executeUpdate();
@@ -400,7 +400,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
 
             // Insert audit event
             try (PreparedStatement aStmt = conn.prepareStatement(
-                    "INSERT INTO public.audit_events (actor_id, entity_type, entity_id, action, details) VALUES (?, 'CYCLE', ?, ?, jsonb_build_object('reason', ?))")) {
+                    "INSERT INTO public.audit_events (actor_id, object_type, object_id, action, details) VALUES (?, 'CYCLE', ?, ?, jsonb_build_object('reason', ?))")) {
                 aStmt.setObject(1, UUID.fromString(admin.id()));
                 aStmt.setObject(2, UUID.fromString(cycleId));
                 aStmt.setString(3, approved ? "APPROVED" : "REJECTED");
@@ -571,7 +571,7 @@ public final class SupabaseCampusRepository implements CampusRepository {
                     upd.executeUpdate();
                 }
                 try (PreparedStatement aStmt = conn.prepareStatement(
-                        "INSERT INTO public.audit_events (actor_id, entity_type, entity_id, action, details) VALUES (?, 'DISPUTE', ?, 'OPENED', '{}'::jsonb)")) {
+                        "INSERT INTO public.audit_events (actor_id, object_type, object_id, action, details) VALUES (?, 'DISPUTE', ?, 'OPENED', '{}'::jsonb)")) {
                     aStmt.setObject(1, UUID.fromString(renter.id()));
                     aStmt.setObject(2, disputeId);
                     aStmt.executeUpdate();
