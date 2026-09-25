@@ -286,7 +286,7 @@ public class LoginView extends StackPane {
         VBox hintBox = new VBox(4);
         hintBox.setStyle("-fx-padding: 10px 14px; -fx-background-color: rgba(2, 132, 199, 0.08); -fx-background-radius: 10px; -fx-border-color: rgba(2, 132, 199, 0.25); -fx-border-radius: 10px;");
         Label hintHeader = new Label("KUET Identity Access");
-        hintHeader.setStyle("-fx-font-size: 11px; -fx-font-weight: 750; -fx-text-fill: #0284C7;");
+        hintHeader.setStyle("-fx-font-size: 11px; -fx-font-weight: 800; -fx-text-fill: #0284C7;");
         Label hintBody = new Label("Student Account: arafat@kuet.ac.bd (or your student roll)\nCycle Office Admin: cycleoffice@kuet.ac.bd (password: any 6+ chars)");
         hintBody.setStyle("-fx-font-size: 10.5px; -fx-opacity: 0.8; -fx-line-spacing: 2px;");
         hintBox.getChildren().addAll(hintHeader, hintBody);

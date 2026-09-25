@@ -296,14 +296,7 @@ public final class CampusCycleApplication extends Application {
     }
 
     private void setupScene(StackPane content, double width, double height) {
-        try {
-            URL resource = getClass().getResource("/bd/ac/kuet/campuscycle/app-shell.fxml");
-            if (resource == null) throw new IOException("Application shell resource missing");
-            rootStack = FXMLLoader.load(resource);
-            rootStack.getChildren().add(content);
-        } catch (IOException exception) {
-            rootStack = content;
-        }
+        rootStack = content;
         scene = new Scene(rootStack, width, height);
         applyActiveTheme();
         stage.setScene(scene);

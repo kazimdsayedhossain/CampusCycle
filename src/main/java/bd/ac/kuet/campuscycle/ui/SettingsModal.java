@@ -115,7 +115,7 @@ public class SettingsModal extends StackPane {
 
         VBox meta = new VBox(2);
         Label name = new Label(user.displayName());
-        name.setStyle("-fx-font-size: 13px; -fx-font-weight: 750;");
+        name.setStyle("-fx-font-size: 13px; -fx-font-weight: 800;");
 
         Label email = new Label(user.email());
         email.setStyle("-fx-font-size: 11px; -fx-opacity: 0.7;");
