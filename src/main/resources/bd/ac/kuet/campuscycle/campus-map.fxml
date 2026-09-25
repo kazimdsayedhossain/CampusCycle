@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      spacing="16" alignment="TOP_CENTER" styleClass="page-host">
+    <HBox alignment="CENTER_LEFT" spacing="12">
+        <VBox spacing="2">
+            <Label text="KUET Campus Map &amp; Stations" style="-fx-font-size: 20px; -fx-font-weight: 800;"/>
+            <Label text="Real-time Euclidean distance math and nearest hub highlights" style="-fx-font-size: 12px; -fx-opacity: 0.75;"/>
+        </VBox>
+    </HBox>
+    <StackPane fx:id="mapHost" styleClass="bento-card"/>
+</VBox>

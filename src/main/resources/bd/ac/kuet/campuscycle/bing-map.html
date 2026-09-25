@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KUET & Khulna City Interactive Map</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #map { height: 100%; width: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; background: #0A0F1D; }
+
+    /* Map Overlays */
+    .map-hud {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 18px;
+      color: #F8FAFC;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      pointer-events: auto;
+      max-width: 380px;
+    }
+    body.light-theme .map-hud {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      color: #0F172A;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .hud-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .hud-badge {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10B981;
+      box-shadow: 0 0 8px #10B981;
+    }
+    .hud-coords {
+      font-size: 11px;
+      font-family: monospace;
+      color: #0EA5E9;
+      margin-bottom: 6px;
+    }
+    body.light-theme .hud-coords {
+      color: #0284C7;
+    }
+    .hud-info {
+      font-size: 11.5px;
+      opacity: 0.85;
+      line-height: 1.4;
+    }
+
+    /* Controls Overlay */
+    .map-controls {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .control-btn {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #F8FAFC;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    body.light-theme .control-btn {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      color: #0F172A;
+    }
+    .control-btn:hover {
+      background: #0284C7;
+      color: #FFFFFF;
+      border-color: #0284C7;
+    }
+    .control-btn.active {
+      background: #0284C7;
+      color: #FFFFFF;
+      border-color: #0284C7;
+    }
+
+    /* Popups */
+    .leaflet-popup-content-wrapper {
+      background: rgba(15, 23, 42, 0.95);
+      color: #F8FAFC;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+    body.light-theme .leaflet-popup-content-wrapper {
+      background: #FFFFFF;
+      color: #0F172A;
+      border: 1px solid rgba(0,0,0,0.08);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .leaflet-popup-tip {
+      background: rgba(15, 23, 42, 0.95);
+    }
+    body.light-theme .leaflet-popup-tip {
+      background: #FFFFFF;
+    }
+    .popup-card {
+      padding: 4px 6px;
+    }
+    .popup-title {
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 4px;
+      color: #0EA5E9;
+    }
+    body.light-theme .popup-title {
+      color: #0284C7;
+    }
+    .popup-sub {
+      font-size: 11px;
+      opacity: 0.8;
+      margin-bottom: 8px;
+    }
+    .popup-action {
+      background: #0284C7;
+      color: #FFFFFF;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+    }
+    .popup-action:hover {
+      background: #0369A1;
+    }
+
+    /* Custom Leaflet Markers */
+    .custom-hub-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #0284C7;
+      color: white;
+      box-shadow: 0 0 14px rgba(2, 132, 199, 0.6);
+      border: 2px solid white;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .custom-user-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #10B981;
+      color: white;
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.8);
+      border: 2px solid white;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* City Zone Banner */
+    .city-zone-banner {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      border-radius: 20px;
+      padding: 6px 18px;
+      color: #E2E8F0;
+      font-size: 11.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      pointer-events: none;
+    }
+    body.light-theme .city-zone-banner {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(2, 132, 199, 0.2);
+      color: #334155;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+  </style>
+</head>
+<body class="dark-theme">
+  <div id="map"></div>
+
+  <!-- Real-time HUD (realaml style) -->
+  <div class="map-hud">
+    <div class="hud-title">
+      <span class="hud-badge"></span>
+      <span>KUET TELEMETRY RADAR</span>
+    </div>
+    <div class="hud-coords" id="hudCoords">22.9009° N, 89.5016° E</div>
+    <div class="hud-info" id="hudInfo">
+      Click anywhere to set your location pin. Calculates walking time and discovers nearest cycles across KUET & Khulna city.
+    </div>
+  </div>
+
+  <!-- Map Layer Controls -->
+  <div class="map-controls">
+    <button class="control-btn active" id="btnStreet" onclick="switchLayer('street')">🗺️ Street Map</button>
+    <button class="control-btn" id="btnSatellite" onclick="switchLayer('satellite')">🛰️ Bing Satellite</button>
+    <button class="control-btn" id="btnCenterKuet" onclick="centerKuet()">📍 Center KUET</button>
+    <button class="control-btn" id="btnCenterKhulna" onclick="centerKhulna()">🏙️ Khulna City</button>
+  </div>
+
+  <!-- City Roaming Banner -->
+  <div class="city-zone-banner">
+    <span>🚴</span>
+    <span>KUET to Khulna City Commute: Cycles permitted anywhere within Khulna Metropolitan Area</span>
+  </div>
+
+  <script>
+    // KUET & Khulna Anchor Coordinates
+    const KUET_CENTER = [22.9009, 89.5016];
+    const KHULNA_CENTER = [22.8450, 89.5400];
+
+    // Official KUET Hubs
+    const CAMPUS_HUBS = [
+      { id: "hub-1", name: "KUET Central Library", lat: 22.9009, lng: 89.5016, cycles: 4, type: "HUB" },
+      { id: "hub-2", name: "Student Welfare Centre", lat: 22.9017, lng: 89.5030, cycles: 3, type: "HUB" },
+      { id: "hub-3", name: "KUET Main Gate", lat: 22.8987, lng: 89.4981, cycles: 2, type: "HUB" },
+      { id: "hub-4", name: "Hall Gate Dock", lat: 22.9045, lng: 89.5060, cycles: 5, type: "HUB" },
+      { id: "hub-5", name: "Academic Building Complex", lat: 22.9015, lng: 89.5010, cycles: 3, type: "HUB" }
+    ];
+
+    // Khulna City Roaming Checkpoints & Partner Zones
+    const KHULNA_ZONES = [
+      { id: "zone-1", name: "Fulbarigate Transit Hub", lat: 22.8950, lng: 89.5040, desc: "Direct KUET link & market connection" },
+      { id: "zone-2", name: "Daulatpur Railway & Terminal", lat: 22.8700, lng: 89.5200, desc: "Midway Khulna artery" },
+      { id: "zone-3", name: "Khalishpur Jute Mills Gate", lat: 22.8550, lng: 89.5300, desc: "Industrial park connection" },
+      { id: "zone-4", name: "Boyra General Hospital", lat: 22.8400, lng: 89.5350, desc: "Civic center & transit intersection" },
+      { id: "zone-5", name: "Sonadanga Central Bus Terminal", lat: 22.8180, lng: 89.5530, desc: "Inter-district bus access" },
+      { id: "zone-6", name: "Shibbari Circle (City Core)", lat: 22.8150, lng: 89.5580, desc: "Downtown commercial center" },
+      { id: "zone-7", name: "Royal Mor / Dakbangla", lat: 22.8100, lng: 89.5640, desc: "Khulna riverfront & shopping" }
+    ];
+
+    let map;
+    let streetLayer, satelliteLayer, darkLayer;
+    let currentLayer;
+    let hubMarkers = [];
+    let userMarker = null;
+    let routeLine = null;
+    let currentTheme = 'dark';
+
+    function initMap() {
+      // Initialize Leaflet map
+      map = L.map('map', {
+        center: KUET_CENTER,
+        zoom: 15,
+        minZoom: 11,
+        maxZoom: 19,
+        zoomControl: false
+      });
+
+      // Layer 1: OpenStreetMap CartoDB Positron / Streets
+      streetLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+      });
+
+      // Layer 2: High-Resolution Esri/Bing Satellite Imagery
+      satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        maxZoom: 18
+      });
+
+      // Layer 3: Dark Matter for Pure Obsidian Dark Theme
+      darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19
+      });
+
+      // Default to darkLayer or streetLayer
+      currentLayer = darkLayer;
+      currentLayer.addTo(map);
+
+      // Re-position zoom control to bottom right
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // Add Hub Markers
+      renderHubs();
+
+      // Add Khulna City Markers
+      renderCityZones();
+
+      // Set initial User Pin at Central Library
+      setUserPin(22.9009, 89.5016, false);
+
+      // Handle map clicks
+      map.on('click', function(e) {
+        setUserPin(e.latlng.lat, e.latlng.lng, true);
+      });
+    }
+
+    function switchLayer(type) {
+      if (!map) return;
+      map.removeLayer(currentLayer);
+
+      document.getElementById('btnStreet').classList.remove('active');
+      document.getElementById('btnSatellite').classList.remove('active');
+
+      if (type === 'satellite') {
+        currentLayer = satelliteLayer;
+        document.getElementById('btnSatellite').classList.add('active');
+      } else if (type === 'street') {
+        currentLayer = streetLayer;
+        document.getElementById('btnStreet').classList.add('active');
+      } else {
+        currentLayer = (currentTheme === 'dark') ? darkLayer : streetLayer;
+      }
+      currentLayer.addTo(map);
+    }
+
+    function centerKuet() {
+      if (map) map.flyTo(KUET_CENTER, 15, { duration: 1.2 });
+    }
+
+    function centerKhulna() {
+      if (map) map.flyTo(KHULNA_CENTER, 13, { duration: 1.5 });
+    }
+
+    function renderHubs() {
+      CAMPUS_HUBS.forEach(hub => {
+        const icon = L.divIcon({
+          className: 'custom-hub-container',
+          html: `<div class="custom-hub-pin">${hub.cycles}</div>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
+        });
+
+        const marker = L.marker([hub.lat, hub.lng], { icon: icon }).addTo(map);
+        marker.bindPopup(`
+          <div class="popup-card">
+            <div class="popup-title">📍 ${hub.name}</div>
+            <div class="popup-sub">${hub.cycles} Cycles Ready • Automated Quad-Dock</div>
+            <button class="popup-action" onclick="onHubClicked('${hub.name}')">Select Station</button>
+          </div>
+        `);
+        hubMarkers.push(marker);
+      });
+    }
+
+    function renderCityZones() {
+      KHULNA_ZONES.forEach(zone => {
+        const icon = L.divIcon({
+          className: 'custom-zone-container',
+          html: `<div style="background:#0EA5E9; color:white; width:22px; height:22px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:11px; box-shadow:0 0 10px rgba(14,165,233,0.5);">🏙️</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        });
+
+        const marker = L.marker([zone.lat, zone.lng], { icon: icon }).addTo(map);
+        marker.bindPopup(`
+          <div class="popup-card">
+            <div class="popup-title" style="color:#0EA5E9;">🏙️ ${zone.name}</div>
+            <div class="popup-sub">${zone.desc}</div>
+            <div style="font-size:10px; color:#10B981; font-weight:700;">✓ Free-Roaming Student Zone</div>
+          </div>
+        `);
+      });
+    }
+
+    function setUserPin(lat, lng, notifyBridge) {
+      if (!map) return;
+
+      if (userMarker) {
+        userMarker.setLatLng([lat, lng]);
+      } else {
+        const userIcon = L.divIcon({
+          className: 'custom-user-container',
+          html: `<div class="custom-user-pin">👤</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+        userMarker = L.marker([lat, lng], { icon: userIcon, draggable: true }).addTo(map);
+        userMarker.on('dragend', function(e) {
+          const pos = e.target.getLatLng();
+          setUserPin(pos.lat, pos.lng, true);
+        });
+      }
+
+      // Calculate nearest campus hub and distance
+      let nearestHub = CAMPUS_HUBS[0];
+      let minDistance = 999999;
+
+      CAMPUS_HUBS.forEach(hub => {
+        const d = calculateDistance(lat, lng, hub.lat, hub.lng);
+        if (d < minDistance) {
+          minDistance = d;
+          nearestHub = hub;
+        }
+      });
+
+      const distMeters = Math.round(minDistance);
+      const walkMinutes = Math.max(1, Math.round(distMeters / 75)); // ~4.5 km/h walk
+
+      // Update HUD
+      document.getElementById('hudCoords').innerText = `${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`;
+      document.getElementById('hudInfo').innerHTML = `
+        <strong>Nearest Station:</strong> ${nearestHub.name}<br>
+        <strong>Distance:</strong> ${distMeters}m (~${walkMinutes} min walk)<br>
+        <span style="color:#10B981;">✓ ${nearestHub.cycles} bicycles available</span>
+      `;
+
+      // Draw dashed guidance line to nearest hub
+      if (routeLine) {
+        map.removeLayer(routeLine);
+      }
+      routeLine = L.polyline([[lat, lng], [nearestHub.lat, nearestHub.lng]], {
+        color: '#0EA5E9',
+        weight: 3,
+        dashArray: '6, 8',
+        opacity: 0.85
+      }).addTo(map);
+
+      // Notify JavaFX Bridge
+      if (notifyBridge && window.campusBridge) {
+        try {
+          window.campusBridge.onLocationSelected(lat, lng, nearestHub.name, distMeters);
+        } catch (e) {
+          console.log("Bridge notification:", e);
+        }
+      }
+    }
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // Earth radius in meters
+      const rad = Math.PI / 180;
+      const phi1 = lat1 * rad;
+      const phi2 = lat2 * rad;
+      const deltaPhi = (lat2 - lat1) * rad;
+      const deltaLambda = (lon2 - lon1) * rad;
+
+      const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                Math.cos(phi1) * Math.cos(phi2) *
+                Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function onHubClicked(hubName) {
+      if (window.campusBridge) {
+        try {
+          window.campusBridge.onHubSelected(hubName);
+        } catch (e) {
+          console.log("Bridge hub click:", e);
+        }
+      }
+    }
+
+    // JavaFX Public API Interface
+    window.CampusMap = {
+      setTheme: function(themeMode) {
+        currentTheme = (themeMode === 'DARK') ? 'dark' : 'light';
+        document.body.className = currentTheme + '-theme';
+        if (currentLayer !== satelliteLayer) {
+          switchLayer(currentTheme === 'dark' ? 'dark' : 'street');
+        }
+      },
+      setUserLocation: function(lat, lng) {
+        setUserPin(lat, lng, false);
+      },
+      drawPath: function(points) {
+        if (!map || !Array.isArray(points) || points.length < 2) return;
+        if (routeLine) map.removeLayer(routeLine);
+        routeLine = L.polyline(points, {
+          color: '#0284C7',
+          weight: 5,
+          opacity: 0.95
+        }).addTo(map);
+        map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+      }
+    };
+
+    // Auto-initialize when window loads
+    window.onload = function() {
+      try {
+        initMap();
+      } catch (err) {
+        console.error("Map initialization failed: ", err);
+      }
+    };
+  </script>
+</body>
+</html>

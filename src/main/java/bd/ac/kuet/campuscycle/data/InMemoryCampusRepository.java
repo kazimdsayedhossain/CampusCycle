@@ -1,0 +1,216 @@
+package bd.ac.kuet.campuscycle.data;
+
+import bd.ac.kuet.campuscycle.domain.*;
+
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
+
+public final class InMemoryCampusRepository implements CampusRepository {
+
+    private static final ZoneId DHAKA = ZoneId.of("Asia/Dhaka");
+    private final List<CycleItem> cycles = new ArrayList<>();
+    private final List<RentalRecord> rentals = new ArrayList<>();
+
+    public InMemoryCampusRepository() {
+        cycles.add(new CycleItem(
+                "C-101", "owner-1", "Nusrat Jahan", "Blue commuter",
+                CycleType.CITY_BIKE, CycleCondition.EXCELLENT, "KUET Central Library",
+                22.9009, 89.5016, "Reliable campus commuter with front basket.",
+                ReviewStatus.APPROVED, AvailabilityStatus.AVAILABLE
+        ));
+        cycles.add(new CycleItem(
+                "C-102", "owner-2", "Rakib Hasan", "Road runner",
+                CycleType.ROAD_BIKE, CycleCondition.GOOD, "Student Welfare Centre",
+                22.9017, 89.5030, "Lightweight 21-speed alloy road bike.",
+                ReviewStatus.APPROVED, AvailabilityStatus.AVAILABLE
+        ));
+        cycles.add(new CycleItem(
+                "C-103", "owner-3", "Sadia Islam", "E-bike 01",
+                CycleType.ELECTRIC_BIKE, CycleCondition.EXCELLENT, "KUET Main Gate",
+                22.8987, 89.4981, "Assisted pedal electric cycle with fast battery.",
+                ReviewStatus.APPROVED, AvailabilityStatus.AVAILABLE
+        ));
+        cycles.add(new CycleItem(
+                "C-104", "owner-4", "Tanvir Ahmed", "Campus Glide",
+                CycleType.CITY_BIKE, CycleCondition.EXCELLENT, "Hall Gate",
+                22.9045, 89.5060, "Comfortable step-through commuter frame.",
+                ReviewStatus.APPROVED, AvailabilityStatus.AVAILABLE
+        ));
+        cycles.add(new CycleItem(
+                "C-105", "owner-5", "Mehedi Hasan", "Eco Cruiser",
+                CycleType.ELECTRIC_BIKE, CycleCondition.GOOD, "Academic Building",
+                22.9015, 89.5010, "Smart throttle e-bike with solar dock lock.",
+                ReviewStatus.APPROVED, AvailabilityStatus.AVAILABLE
+        ));
+        cycles.add(new CycleItem(
+                "C-106", "demo-student", "Arafat Rahman", "Daily rider",
+                CycleType.CITY_BIKE, CycleCondition.GOOD, "Hall Gate",
+                22.9045, 89.5060, "Student listing awaiting physical inspection.",
+                ReviewStatus.PENDING_REVIEW, AvailabilityStatus.AVAILABLE
+        ));
+    }
+
+    @Override
+    public synchronized List<CycleItem> catalog(CampusUser user) {
+        return cycles.stream()
+                .filter(c -> c.reviewStatus() == ReviewStatus.APPROVED)
+                .filter(c -> c.availabilityStatus() == AvailabilityStatus.AVAILABLE)
+                .filter(c -> user == null || !c.ownerId().equals(user.id()))
+                .sorted(Comparator.comparing(CycleItem::label))
+                .toList();
+    }
+
+    @Override
+    public synchronized List<CycleItem> pendingCycles() {
+        return cycles.stream()
+                .filter(c -> c.reviewStatus() == ReviewStatus.PENDING_REVIEW)
+                .toList();
+    }
+
+    @Override
+    public synchronized List<RentalRecord> rentals(CampusUser user) {
+        return rentals.stream()
+                .filter(r -> r.renterId().equals(user.id()))
+                .sorted(Comparator.comparing(RentalRecord::startedAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public synchronized RentalRecord activeRental(CampusUser user) {
+        return rentals.stream()
+                .filter(r -> r.renterId().equals(user.id()) && r.status() == RentalStatus.ACTIVE)
+                .findFirst()
+                .orElse(null);
+    }
+
+    @Override
+    public synchronized RentalRecord book(CampusUser renter, String cycleId, int minutes) {
+        if (activeRental(renter) != null) {
+            throw new IllegalStateException("Return your active cycle before starting another rental.");
+        }
+        int index = findCycle(cycleId);
+        CycleItem cycle = cycles.get(index);
+        if (!cycle.canBeBookedBy(renter.id())) {
+            throw new IllegalStateException("This cycle is no longer available.");
+        }
+
+        ZonedDateTime now = ZonedDateTime.now(DHAKA);
+        int basePoisha = 2000; // 20 BDT
+        int extraMinutes = Math.max(0, minutes - 15);
+        int extraBlocks = (int) Math.ceil(extraMinutes / 15.0);
+        int totalPoisha = basePoisha + (extraBlocks * 1000); // +10 BDT per block
+
+        RentalRecord rental = new RentalRecord(
+                "R-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                cycle.id(),
+                cycle.label(),
+                renter.id(),
+                minutes,
+                totalPoisha,
+                RentalStatus.ACTIVE,
+                now,
+                now.plusMinutes(minutes),
+                null
+        );
+
+        rentals.add(rental);
+        cycles.set(index, updateCycleAvailability(cycle, AvailabilityStatus.RENTED));
+        return rental;
+    }
+
+    @Override
+    public synchronized void returnRental(CampusUser renter, String rentalId) {
+        int rIndex = findRental(rentalId);
+        RentalRecord record = rentals.get(rIndex);
+        if (!record.renterId().equals(renter.id()) || record.status() != RentalStatus.ACTIVE) {
+            throw new IllegalStateException("Rental cannot be returned.");
+        }
+
+        ZonedDateTime now = ZonedDateTime.now(DHAKA);
+        rentals.set(rIndex, new RentalRecord(
+                record.id(),
+                record.cycleId(),
+                record.cycleLabel(),
+                record.renterId(),
+                record.requestedMinutes(),
+                record.quotedAmountPoisha(),
+                RentalStatus.RETURNED,
+                record.startedAt(),
+                record.dueAt(),
+                now
+        ));
+
+        int cIndex = findCycle(record.cycleId());
+        cycles.set(cIndex, updateCycleAvailability(cycles.get(cIndex), AvailabilityStatus.AVAILABLE));
+    }
+
+    @Override
+    public synchronized void reviewCycle(CampusUser admin, String cycleId, boolean approved, String reason) {
+        if (admin.role() != Role.ADMIN) {
+            throw new SecurityException("Admin authorization required.");
+        }
+        int index = findCycle(cycleId);
+        CycleItem cycle = cycles.get(index);
+        if (cycle.reviewStatus() != ReviewStatus.PENDING_REVIEW) {
+            throw new IllegalStateException("Cycle listing has already been reviewed.");
+        }
+
+        cycles.set(index, new CycleItem(
+                cycle.id(),
+                cycle.ownerId(),
+                cycle.ownerName(),
+                cycle.label(),
+                cycle.type(),
+                cycle.condition(),
+                cycle.pickupPoint(),
+                cycle.latitude(),
+                cycle.longitude(),
+                cycle.description(),
+                approved ? ReviewStatus.APPROVED : ReviewStatus.REJECTED,
+                cycle.availabilityStatus()
+        ));
+    }
+
+    @Override
+    public synchronized void rebalanceHub(String sourceHub, String targetHub, int count) {
+        // Move available cycles from sourceHub to targetHub
+        int moved = 0;
+        for (int i = 0; i < cycles.size() && moved < count; i++) {
+            CycleItem c = cycles.get(i);
+            if (c.pickupPoint().equalsIgnoreCase(sourceHub) && c.availabilityStatus() == AvailabilityStatus.AVAILABLE) {
+                cycles.set(i, new CycleItem(
+                        c.id(), c.ownerId(), c.ownerName(), c.label(), c.type(), c.condition(),
+                        targetHub, c.latitude(), c.longitude(), c.description(),
+                        c.reviewStatus(), c.availabilityStatus()
+                ));
+                moved++;
+            }
+        }
+    }
+
+    private int findCycle(String id) {
+        for (int i = 0; i < cycles.size(); i++) {
+            if (cycles.get(i).id().equals(id)) return i;
+        }
+        throw new IllegalArgumentException("Cycle not found: " + id);
+    }
+
+    private int findRental(String id) {
+        for (int i = 0; i < rentals.size(); i++) {
+            if (rentals.get(i).id().equals(id)) return i;
+        }
+        throw new IllegalArgumentException("Rental not found: " + id);
+    }
+
+    private CycleItem updateCycleAvailability(CycleItem c, AvailabilityStatus status) {
+        return new CycleItem(
+                c.id(), c.ownerId(), c.ownerName(), c.label(), c.type(), c.condition(),
+                c.pickupPoint(), c.latitude(), c.longitude(), c.description(),
+                c.reviewStatus(), status
+        );
+    }
+}

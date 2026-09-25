@@ -1,19 +1,15 @@
-module com.example.campuscycle {
+module bd.ac.kuet.campuscycle {
     requires javafx.controls;
     requires javafx.fxml;
-    requires java.desktop;
-    requires java.sql;
-    requires java.naming;
-    requires jdk.compiler;
-    requires com.google.gson;
+    requires javafx.web;
+    requires jdk.jsobject;
     requires java.net.http;
+    requires com.google.gson;
+    requires java.sql;
 
-
-    opens com.example.campuscycle to javafx.fxml;
-    opens com.example.campuscycle.auth to com.google.gson;
-    exports com.example.campuscycle;
-    exports com.example.campuscycle.model;
-    exports com.example.campuscycle.ui;
-    exports com.example.campuscycle.database;
-    exports com.example.campuscycle.auth;
+    exports bd.ac.kuet.campuscycle;
+    exports bd.ac.kuet.campuscycle.domain;
+    exports bd.ac.kuet.campuscycle.data;
+    exports bd.ac.kuet.campuscycle.ui;
+    opens bd.ac.kuet.campuscycle.ui to javafx.fxml;
 }
