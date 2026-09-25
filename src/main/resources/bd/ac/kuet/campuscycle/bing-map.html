@@ -345,7 +345,7 @@
         fillOpacity: 0.08
       }).addTo(map);
 
-      // Render KUET Campus Quad-Dock Hubs
+      // Render KUET Campus Station Hubs
       renderHubs();
 
       // Render Khulna City Roaming Checkpoints
@@ -382,7 +382,7 @@
         marker.bindPopup(`
           <div class="popup-card">
             <div class="popup-title">${hub.name}</div>
-            <div class="popup-sub">${hub.cycles} Cycles Ready &bull; Smart Quad-Dock</div>
+            <div class="popup-sub">${hub.cycles} Cycles Ready &bull; Bicycle Station</div>
             <button class="popup-action" onclick="onHubClicked('${hub.name}')">Select Station</button>
           </div>
         `);

@@ -87,6 +87,8 @@ public final class ThemeManager {
             "M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z";
     public static final String ICON_CLOCK =
             "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 11h-4V7h2v4h2v2z";
+    public static final String ICON_PLAY =
+            "M8 5v14l11-7z";
     public static final String ICON_BOLT =
             "M11 21h-1l1-7H7.5c-.88 0-.33-.75-.31-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-6 10.49z";
     public static final String ICON_SEARCH =
@@ -123,6 +125,8 @@ public final class ThemeManager {
             "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z";
     public static final String ICON_ALERT =
             "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z";
+    public static final String ICON_CARD =
+            "M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z";
 
     public static SVGPath createIcon(String pathData, double size, Color fill) {
         SVGPath path = new SVGPath();

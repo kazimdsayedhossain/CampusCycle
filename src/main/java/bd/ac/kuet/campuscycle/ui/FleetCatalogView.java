@@ -4,6 +4,7 @@ import bd.ac.kuet.campuscycle.data.CampusRepository;
 import bd.ac.kuet.campuscycle.domain.AvailabilityStatus;
 import bd.ac.kuet.campuscycle.domain.CampusUser;
 import bd.ac.kuet.campuscycle.domain.CycleItem;
+import bd.ac.kuet.campuscycle.domain.TariffService;
 import bd.ac.kuet.campuscycle.service.AppExecutor;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -17,11 +18,13 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Production-ready FleetCatalogView:
- * 1. Asynchronous multi-threaded data fetching
- * 2. Instant in-memory client-side search filtering (no query flooding)
- * 3. Peer cycle registration action button
- * 4. Embedded interactive BingMapView with station jump
+ * Clean, centered Fleet Catalog:
+ * 1. Filter chips: All, City Bike, Road Bike, Electric Bike
+ * 2. Instant real-time search
+ * 3. Register Your Bike action
+ * 4. Cycle cards with photo/icon, label, hub dock, type & condition badges,
+ *    and hourly rate with 20% student discount applied
+ * 5. Center-aligned, responsive layout without left-pinning void
  */
 public class FleetCatalogView extends VBox {
 
@@ -33,7 +36,7 @@ public class FleetCatalogView extends VBox {
 
     private final TextField searchField = new TextField();
     private final CheckBox availableOnlyCheck = new CheckBox("Available Only");
-    private final FlowPane cardsGrid = new FlowPane(16, 16);
+    private final FlowPane cardsGrid = new FlowPane(20, 20);
     private String selectedTypeFilter = "ALL";
     private final List<Button> chipButtons = new ArrayList<>();
     private final VBox mapContainer = new VBox(12);
@@ -64,10 +67,15 @@ public class FleetCatalogView extends VBox {
         VBox controls = createControlBar();
         setupMapContainer();
 
-        cardsGrid.setAlignment(Pos.TOP_LEFT);
-        cardsGrid.setPrefWrapLength(1080);
+        cardsGrid.setAlignment(Pos.TOP_CENTER);
+        cardsGrid.setPrefWrapLength(1060);
+        cardsGrid.setMaxWidth(1060);
 
-        getChildren().addAll(header, controls, mapContainer, cardsGrid);
+        VBox gridCenterContainer = new VBox(cardsGrid);
+        gridCenterContainer.setAlignment(Pos.TOP_CENTER);
+        gridCenterContainer.setMaxWidth(1080);
+
+        getChildren().addAll(header, controls, mapContainer, gridCenterContainer);
 
         refreshCatalog();
         ThemeManager.applyFadeIn(this);
@@ -77,27 +85,29 @@ public class FleetCatalogView extends VBox {
         HBox row = new HBox(16);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleCol = new VBox(4);
-        Label title = new Label("KUET Fleet Catalog");
+        VBox titleCol = new VBox(3);
+        Label title = new Label("Campus Cycles");
         title.getStyleClass().add("view-title");
+        title.setStyle("-fx-font-size: 24px; -fx-font-weight: 800; -fx-text-fill: -fx-ink-900;");
 
-        Label sub = new Label("Discover and instantly reserve verified bicycles across all 5 campus hubs");
+        Label sub = new Label("Find and unlock available cycles on campus");
         sub.getStyleClass().add("view-subtitle");
+        sub.setStyle("-fx-font-size: 13px; -fx-opacity: 0.75; -fx-text-fill: -fx-ink-700;");
         titleCol.getChildren().addAll(title, sub);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button registerBtn = new Button("Register My Cycle (+)");
+        Button registerBtn = new Button("Register Your Bike");
         registerBtn.getStyleClass().add("primary-button");
         registerBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 14, Color.WHITE));
         if (onOpenRegister != null) {
             registerBtn.setOnAction(e -> onOpenRegister.run());
         }
 
-        Button toggleMapBtn = new Button("Toggle Station Map");
+        Button toggleMapBtn = new Button("Station Map");
         toggleMapBtn.getStyleClass().add("secondary-button");
-        toggleMapBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_PIN, 13, Color.web("#0F172A")));
+        toggleMapBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_PIN, 13, Color.web("#10B981")));
         toggleMapBtn.setOnAction(e -> {
             isMapVisible = !isMapVisible;
             mapContainer.setVisible(isMapVisible);
@@ -114,7 +124,6 @@ public class FleetCatalogView extends VBox {
     private void setupMapContainer() {
         mapContainer.setVisible(false);
         mapContainer.setManaged(false);
-        // Lazy: WebView created only when user toggles map visible.
     }
 
     private void rebuildStationMap() {
@@ -125,11 +134,10 @@ public class FleetCatalogView extends VBox {
                 onLocationChanged
         );
         stationMap = map;
-        map.setPrefHeight(400);
+        map.setPrefHeight(380);
         mapContainer.getChildren().setAll(map);
     }
 
-    /** Release embedded map. */
     public void dispose() {
         if (stationMap != null) {
             stationMap.dispose();
@@ -138,7 +146,9 @@ public class FleetCatalogView extends VBox {
     }
 
     private VBox createControlBar() {
-        VBox bar = new VBox(12);
+        VBox bar = new VBox(14);
+        bar.setAlignment(Pos.CENTER);
+        bar.setMaxWidth(1060);
 
         HBox topRow = new HBox(12);
         topRow.setAlignment(Pos.CENTER_LEFT);
@@ -146,14 +156,14 @@ public class FleetCatalogView extends VBox {
         HBox searchBox = new HBox(8);
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchBox.getStyleClass().add("input-pill-box");
-        searchBox.setPrefWidth(380);
+        searchBox.setPrefWidth(420);
 
         SVGPath searchIcon = ThemeManager.createIcon(ThemeManager.ICON_SEARCH, 14, Color.web("#9CA3AF"));
         searchField.setPromptText("Search cycles by model, station, or owner...");
         searchField.getStyleClass().add("bare-input");
         HBox.setHgrow(searchField, Priority.ALWAYS);
 
-        // Instant in-memory filtering on keystroke (no network calls)
+        // Instant in-memory real-time filtering on keystroke
         searchField.textProperty().addListener((obs, o, n) -> applyFilter());
         searchBox.getChildren().addAll(searchIcon, searchField);
 
@@ -161,20 +171,19 @@ public class FleetCatalogView extends VBox {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         availableOnlyCheck.setSelected(true);
-        availableOnlyCheck.getStyleClass().add("metric-label");
+        availableOnlyCheck.setStyle("-fx-font-size: 12px; -fx-font-weight: 650;");
         availableOnlyCheck.selectedProperty().addListener((obs, o, n) -> applyFilter());
 
         topRow.getChildren().addAll(searchBox, spacer, availableOnlyCheck);
 
-        // Filter Chips Row
-        HBox chips = new HBox(8);
+        // Quick Filter Chips: All, City Bike, Road Bike, Electric Bike
+        HBox chips = new HBox(10);
         chips.setAlignment(Pos.CENTER_LEFT);
 
-        addChip(chips, "All Models", "ALL");
-        addChip(chips, "City Commuters", "CITY_BIKE");
-        addChip(chips, "Road Racers", "ROAD_BIKE");
-        addChip(chips, "Electric Assisted", "ELECTRIC_BIKE");
-        addChip(chips, "Cargo Utility", "CARGO_BIKE");
+        addChip(chips, "All", "ALL");
+        addChip(chips, "City Bike", "CITY_BIKE");
+        addChip(chips, "Road Bike", "ROAD_BIKE");
+        addChip(chips, "Electric Bike", "ELECTRIC_BIKE");
 
         bar.getChildren().addAll(topRow, chips);
         return bar;
@@ -204,10 +213,10 @@ public class FleetCatalogView extends VBox {
 
         cardsGrid.getChildren().clear();
         ProgressIndicator pi = new ProgressIndicator();
-        pi.setMaxSize(40, 40);
-        VBox loadingBox = new VBox(12, pi, new Label("Loading campus fleet..."));
+        pi.setMaxSize(36, 36);
+        VBox loadingBox = new VBox(12, pi, new Label("Loading available campus cycles..."));
         loadingBox.setAlignment(Pos.CENTER);
-        loadingBox.setPrefWidth(1000);
+        loadingBox.setPrefWidth(900);
         loadingBox.setPadding(new Insets(50));
         cardsGrid.getChildren().add(loadingBox);
 
@@ -216,17 +225,15 @@ public class FleetCatalogView extends VBox {
                 cycles -> {
                     isLoading = false;
                     this.cachedCycles = cycles;
-                    // Update map only if visible (lazy, dispose previous)
                     if (isMapVisible) {
                         rebuildStationMap();
                     }
-
                     applyFilter();
                 },
                 throwable -> {
                     isLoading = false;
                     cardsGrid.getChildren().clear();
-                    cardsGrid.getChildren().add(new Label("Catalog is offline. Please retry."));
+                    cardsGrid.getChildren().add(new Label("Catalog is currently unavailable. Please retry."));
                 }
         );
     }
@@ -239,7 +246,7 @@ public class FleetCatalogView extends VBox {
         List<CycleItem> items = cachedCycles.stream()
                 .filter(c -> {
                     if (availableOnly && c.availabilityStatus() != AvailabilityStatus.AVAILABLE) return false;
-                    if (!selectedTypeFilter.equals("ALL") && !c.type().name().equals(selectedTypeFilter)) return false;
+                    if (!selectedTypeFilter.equals("ALL") && !c.type().name().equalsIgnoreCase(selectedTypeFilter)) return false;
                     if (query.isEmpty()) return true;
                     return c.label().toLowerCase().contains(query)
                             || c.pickupPoint().toLowerCase().contains(query)
@@ -250,14 +257,14 @@ public class FleetCatalogView extends VBox {
         if (items.isEmpty()) {
             VBox empty = new VBox(8);
             empty.setAlignment(Pos.CENTER);
-            empty.setPadding(new Insets(40));
-            empty.setPrefWidth(1000);
+            empty.setPadding(new Insets(50));
+            empty.setPrefWidth(900);
 
-            Label noMsg = new Label("No bicycles match your filter criteria.");
-            noMsg.setStyle("-fx-font-size: 14px; -fx-font-weight: 700; -fx-opacity: 0.7;");
+            Label noMsg = new Label("No cycles match your filter criteria.");
+            noMsg.setStyle("-fx-font-size: 14px; -fx-font-weight: 700; -fx-opacity: 0.75;");
 
-            Label resetHint = new Label("Try changing your station search or select 'All Models'.");
-            resetHint.setStyle("-fx-font-size: 12px; -fx-opacity: 0.5;");
+            Label resetHint = new Label("Try searching a different station or select 'All'.");
+            resetHint.setStyle("-fx-font-size: 12px; -fx-opacity: 0.55;");
 
             empty.getChildren().addAll(noMsg, resetHint);
             cardsGrid.getChildren().add(empty);
@@ -272,67 +279,81 @@ public class FleetCatalogView extends VBox {
     private VBox createCycleCard(CycleItem cycle) {
         VBox card = new VBox(14);
         card.getStyleClass().add("cycle-card");
-        card.setPadding(new Insets(20));
-        card.setPrefWidth(340);
+        card.setPadding(new Insets(18, 20, 18, 20));
+        card.setPrefWidth(330);
         card.setMaxWidth(340);
 
         String accentColor = switch (cycle.type()) {
-            case ELECTRIC_BIKE -> "#2EB5A4";
-            case ROAD_BIKE -> "#8B5CF6";
+            case ELECTRIC_BIKE -> "#10B981";
+            case ROAD_BIKE -> "#3B82F6";
             case CARGO_BIKE -> "#F59E0B";
-            case CITY_BIKE -> "#2EB5A4";
-            default -> "#35BFAE";
+            case CITY_BIKE -> "#10B981";
+            default -> "#10B981";
         };
         card.setStyle(card.getStyle() + String.format("; -fx-border-color: transparent transparent transparent %s; -fx-border-width: 0 0 0 4px;", accentColor));
 
+        // 1. Top Row: Icon, Title & Owner, Type & Condition Badges
         HBox top = new HBox(10);
         top.setAlignment(Pos.CENTER_LEFT);
 
         StackPane iconStage = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 18, Color.web(accentColor)));
-        iconStage.setPrefSize(36, 36);
+        iconStage.setPrefSize(38, 38);
         iconStage.getStyleClass().add("action-icon-btn");
 
         VBox titleCol = new VBox(2);
         Label name = new Label(cycle.label());
         name.getStyleClass().add("card-title");
+        name.setStyle("-fx-font-size: 14.5px; -fx-font-weight: 750;");
 
-        Label owner = new Label("Verified Owner: " + cycle.ownerName());
-        owner.getStyleClass().add("metric-label");
-        owner.setStyle("-fx-opacity: 0.7;");
+        Label owner = new Label("Owner: " + cycle.ownerName());
+        owner.setStyle("-fx-font-size: 11px; -fx-opacity: 0.7;");
         titleCol.getChildren().addAll(name, owner);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
+        // Badges: Type + Condition
+        VBox badgesCol = new VBox(4);
+        badgesCol.setAlignment(Pos.CENTER_RIGHT);
+
         Label typeBadge = new Label(cycle.type().name().replace("_", " "));
-        typeBadge.getStyleClass().add("badge-electric");
+        typeBadge.setStyle("-fx-font-size: 10px; -fx-font-weight: 750; -fx-padding: 2px 7px; -fx-background-radius: 999px; -fx-background-color: rgba(16, 185, 129, 0.12); -fx-text-fill: -fx-teal;");
 
-        top.getChildren().addAll(iconStage, titleCol, spacer, typeBadge);
+        Label condBadge = new Label(cycle.condition().name());
+        condBadge.setStyle("-fx-font-size: 9.5px; -fx-font-weight: 700; -fx-padding: 2px 6px; -fx-background-radius: 999px; -fx-background-color: rgba(59, 130, 246, 0.10); -fx-text-fill: #3B82F6;");
 
-        VBox metaSection = new VBox(6);
-        Label station = new Label("Dock: " + cycle.pickupPoint());
-        station.getStyleClass().add("metric-label");
-        station.setStyle("-fx-font-weight: 650;");
+        badgesCol.getChildren().addAll(typeBadge, condBadge);
+        top.getChildren().addAll(iconStage, titleCol, spacer, badgesCol);
 
-        Label desc = new Label(cycle.description().isEmpty() ? "Standard KUET campus commuter bicycle." : cycle.description());
-        desc.getStyleClass().add("metric-label");
-        desc.setStyle("-fx-opacity: 0.65;");
+        // 2. Hub Dock & Description
+        VBox metaSection = new VBox(5);
+        Label station = new Label("📍 Dock: " + cycle.pickupPoint());
+        station.setStyle("-fx-font-size: 12px; -fx-font-weight: 650; -fx-opacity: 0.85;");
+
+        Label desc = new Label(cycle.description().isEmpty() ? "Verified KUET campus commuter bicycle." : cycle.description());
+        desc.setStyle("-fx-font-size: 11.5px; -fx-opacity: 0.65;");
         desc.setWrapText(true);
+        desc.setMaxHeight(36);
 
         metaSection.getChildren().addAll(station, desc);
+
+        // 3. Pricing Breakdown (Hourly rate with 20% student discount applied)
+        // 1 hour base fare from TariffService = 5000 poisha (৳ 50.00)
+        // With 20% discount = ৳ 40.00
+        int baseHourlyPoisha = TariffService.quotePoisha(60);
+        int discountPoisha = (int) Math.round(baseHourlyPoisha * 0.20);
+        int discountedPoisha = baseHourlyPoisha - discountPoisha;
 
         HBox bottom = new HBox(10);
         bottom.setAlignment(Pos.CENTER_LEFT);
 
         VBox priceCol = new VBox(1);
-        Label rate = new Label(bd.ac.kuet.campuscycle.domain.TariffService.formatBdt(bd.ac.kuet.campuscycle.domain.TariffService.BASE_CHARGE_POISHA));
-        rate.getStyleClass().add("metric-number");
-        rate.setStyle("-fx-text-fill: #0F172A;");
+        Label rate = new Label(String.format("৳ %.2f / hr", discountedPoisha / 100.0));
+        rate.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: -fx-teal;");
 
-        Label sub = new Label("First 15m • +10/15m");
-        sub.getStyleClass().add("metric-label");
-        sub.setStyle("-fx-opacity: 0.6;");
-        priceCol.getChildren().addAll(rate, sub);
+        Label discountNotice = new Label(String.format("৳ %.2f (-20%% student perk)", baseHourlyPoisha / 100.0));
+        discountNotice.setStyle("-fx-font-size: 10.5px; -fx-opacity: 0.6;");
+        priceCol.getChildren().addAll(rate, discountNotice);
 
         Region sp2 = new Region();
         HBox.setHgrow(sp2, Priority.ALWAYS);

@@ -2,12 +2,15 @@ package bd.ac.kuet.campuscycle.ui;
 
 import bd.ac.kuet.campuscycle.data.CampusRepository;
 import bd.ac.kuet.campuscycle.data.EventBus;
+import bd.ac.kuet.campuscycle.data.LocalDatabase;
+import bd.ac.kuet.campuscycle.domain.AvailabilityStatus;
 import bd.ac.kuet.campuscycle.domain.CampusUser;
 import bd.ac.kuet.campuscycle.domain.CycleItem;
 import bd.ac.kuet.campuscycle.domain.RentalRecord;
-import bd.ac.kuet.campuscycle.domain.Role;
+import bd.ac.kuet.campuscycle.domain.TariffService;
 import bd.ac.kuet.campuscycle.domain.event.RentalStartedEvent;
 import bd.ac.kuet.campuscycle.service.AppExecutor;
+import bd.ac.kuet.campuscycle.service.WalletService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -17,7 +20,18 @@ import javafx.scene.paint.Color;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
+/**
+ * Clean Reservation Modal:
+ * 1. Title: "Reserve Cycle"
+ * 2. Duration selector pills: 15 mins, 30 mins, 1 hour, 2 hours
+ * 3. Pricing breakdown: Base Fare, Student Discount (-20% Applied), Total Due
+ * 4. Payment Selector: Prepaid Campus Pay vs Station Dock / bKash
+ * 5. Insufficient balance validation with header top-up guidance
+ * 6. Clean "Confirm & Unlock Cycle" action
+ */
 public class ReservationModal extends StackPane {
 
     private final CycleItem cycle;
@@ -27,14 +41,18 @@ public class ReservationModal extends StackPane {
     private final Runnable onSuccess;
 
     private int selectedMinutes = 30;
-    private final Label timeLabel = new Label("30 mins");
-    private final Label returnLabel = new Label();
-    private final Label tariffLabel = new Label();
-    private final Label discountLabel = new Label();
-    private final Label totalLabel = new Label();
+    private final List<Button> durationPills = new ArrayList<>();
 
-    private final RadioButton rbSubsidy = new RadioButton("KUET Student Subsidy (25% statement credit)");
-    private final Label unpaidNote = new Label("Payment stays UNPAID until a Bangladesh provider is connected. No charge is collected in this build.");
+    private final Label returnLabel = new Label();
+    private final Label baseFareLabel = new Label();
+    private final Label discountLabel = new Label();
+    private final Label totalDueLabel = new Label();
+
+    private final RadioButton rbCampusPay = new RadioButton();
+    private final RadioButton rbDockPay = new RadioButton("Pay at Station Dock / bKash");
+    private final ToggleGroup paymentGroup = new ToggleGroup();
+    private final Label warningLabel = new Label();
+    private final Button confirmBtn = new Button("Confirm & Unlock Cycle");
 
     public ReservationModal(CycleItem cycle,
                             CampusUser user,
@@ -53,20 +71,20 @@ public class ReservationModal extends StackPane {
 
         VBox sheet = new VBox(18);
         sheet.getStyleClass().add("modal-sheet");
-        sheet.setMaxWidth(500);
-        sheet.setPadding(new Insets(28));
+        sheet.setMaxWidth(480);
+        sheet.setPadding(new Insets(26));
 
         HBox header = createHeader();
         VBox cycleInfo = createCycleInfoCard();
-        VBox sliderSection = createSliderSection();
-        VBox paymentMethodSection = createPaymentMethodSection();
-        VBox summarySection = createSummarySection();
+        VBox durationSection = createDurationPillsSection();
+        VBox pricingSection = createPricingSection();
+        VBox paymentSection = createPaymentSelectorSection();
         HBox actions = createActionButtons();
 
-        sheet.getChildren().addAll(header, cycleInfo, sliderSection, paymentMethodSection, summarySection, actions);
+        sheet.getChildren().addAll(header, cycleInfo, durationSection, pricingSection, paymentSection, actions);
         getChildren().add(sheet);
 
-        updateTariffCalculation();
+        updateCalculations();
         ThemeManager.applyFadeIn(this);
     }
 
@@ -74,16 +92,16 @@ public class ReservationModal extends StackPane {
         HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 18, Color.web("#2EB5A4")));
-        icon.setPrefSize(36, 36);
+        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 18, Color.web("#10B981")));
+        icon.setPrefSize(38, 38);
         icon.getStyleClass().add("action-icon-btn");
 
         VBox titleCol = new VBox(2);
-        Label title = new Label("Unlock & Reserve Cycle");
-        title.setStyle("-fx-font-size: 16px; -fx-font-weight: 800;");
+        Label title = new Label("Reserve Cycle");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: 800; -fx-text-fill: -fx-ink-900;");
 
-        Label sub = new Label("Instant Bluetooth smart lock release at station");
-        sub.setStyle("-fx-font-size: 11.5px; -fx-opacity: 0.7;");
+        Label sub = new Label("Instant unlock at station dock");
+        sub.setStyle("-fx-font-size: 12px; -fx-opacity: 0.75; -fx-text-fill: -fx-ink-700;");
 
         titleCol.getChildren().addAll(title, sub);
 
@@ -97,9 +115,9 @@ public class ReservationModal extends StackPane {
     }
 
     private VBox createCycleInfoCard() {
-        VBox box = new VBox(8);
+        VBox box = new VBox(6);
         box.getStyleClass().add("sub-panel");
-        box.setPadding(new Insets(14, 16, 14, 16));
+        box.setPadding(new Insets(12, 16, 12, 16));
 
         HBox top = new HBox(10);
         top.setAlignment(Pos.CENTER_LEFT);
@@ -111,94 +129,81 @@ public class ReservationModal extends StackPane {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         Label typeBadge = new Label(cycle.type().name().replace("_", " "));
-        typeBadge.getStyleClass().add("badge-electric");
+        typeBadge.setStyle("-fx-font-size: 10px; -fx-font-weight: 700; -fx-padding: 2px 7px; -fx-background-radius: 999px; -fx-background-color: rgba(16, 185, 129, 0.12); -fx-text-fill: -fx-teal;");
 
         top.getChildren().addAll(name, spacer, typeBadge);
 
-        Label station = new Label("Dock: " + cycle.pickupPoint() + " - Verified KUET Hardware");
+        Label station = new Label("📍 Station Dock: " + cycle.pickupPoint());
         station.setStyle("-fx-font-size: 11.5px; -fx-opacity: 0.75;");
 
         box.getChildren().addAll(top, station);
         return box;
     }
 
-    private VBox createSliderSection() {
-        VBox box = new VBox(12);
+    private VBox createDurationPillsSection() {
+        VBox box = new VBox(8);
 
         HBox labelRow = new HBox();
-        Label durHeading = new Label("ESTIMATED COMMUTE DURATION");
-        durHeading.getStyleClass().add("metric-label");
+        Label heading = new Label("COMMUTE DURATION");
+        heading.getStyleClass().add("metric-label");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        timeLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #2EB5A4;");
-        labelRow.getChildren().addAll(durHeading, spacer, timeLabel);
+        returnLabel.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 650; -fx-text-fill: -fx-teal;");
+        labelRow.getChildren().addAll(heading, spacer, returnLabel);
 
-        Slider slider = new Slider(15, 180, 30);
-        slider.setMajorTickUnit(15);
-        slider.setSnapToTicks(true);
-        slider.getStyleClass().add("slider");
+        // Duration selector pills: 15 mins, 30 mins, 1 hour, 2 hours
+        HBox pillsRow = new HBox(8);
+        pillsRow.setAlignment(Pos.CENTER);
 
-        slider.valueProperty().addListener((obs, o, n) -> {
-            selectedMinutes = (int) Math.round(n.doubleValue() / 15.0) * 15;
-            selectedMinutes = Math.max(15, Math.min(180, selectedMinutes));
-            timeLabel.setText(selectedMinutes + " mins");
-            updateTariffCalculation();
+        addDurationPill(pillsRow, "15 mins", 15);
+        addDurationPill(pillsRow, "30 mins", 30);
+        addDurationPill(pillsRow, "1 hour", 60);
+        addDurationPill(pillsRow, "2 hours", 120);
+
+        box.getChildren().addAll(labelRow, pillsRow);
+        return box;
+    }
+
+    private void addDurationPill(HBox container, String label, int minutes) {
+        Button pill = new Button(label);
+        pill.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(pill, Priority.ALWAYS);
+        pill.getStyleClass().add("filter-chip");
+
+        if (minutes == selectedMinutes) {
+            pill.getStyleClass().add("filter-chip-active");
+        }
+
+        pill.setOnAction(e -> {
+            for (Button b : durationPills) {
+                b.getStyleClass().remove("filter-chip-active");
+            }
+            pill.getStyleClass().add("filter-chip-active");
+            selectedMinutes = minutes;
+            updateCalculations();
         });
 
-        HBox bounds = new HBox();
-        Label minLbl = new Label("15 mins (Min)");
-        minLbl.setStyle("-fx-font-size: 10.5px; -fx-opacity: 0.6;");
-
-        Region sp = new Region();
-        HBox.setHgrow(sp, Priority.ALWAYS);
-
-        Label maxLbl = new Label("180 mins (Max)");
-        maxLbl.setStyle("-fx-font-size: 10.5px; -fx-opacity: 0.6;");
-        bounds.getChildren().addAll(minLbl, sp, maxLbl);
-
-        box.getChildren().addAll(labelRow, slider, bounds);
-        return box;
+        durationPills.add(pill);
+        container.getChildren().add(pill);
     }
 
-    private VBox createPaymentMethodSection() {
-        VBox box = new VBox(8);
-
-        Label label = new Label("PAYMENT STATUS");
-        label.getStyleClass().add("metric-label");
-
-        rbSubsidy.setSelected(true);
-        rbSubsidy.setDisable(true);
-        rbSubsidy.getStyleClass().add("radio-button");
-
-        unpaidNote.setWrapText(true);
-        unpaidNote.setStyle("-fx-font-size: 11px; -fx-opacity: 0.7;");
-
-        VBox radioBox = new VBox(6, rbSubsidy, unpaidNote);
-        radioBox.getStyleClass().add("sub-panel");
-        radioBox.setPadding(new Insets(10, 14, 10, 14));
-
-        box.getChildren().addAll(label, radioBox);
-        return box;
-    }
-
-    private VBox createSummarySection() {
-        VBox box = new VBox(8);
+    private VBox createPricingSection() {
+        VBox box = new VBox(7);
         box.getStyleClass().add("sub-panel");
-        box.setPadding(new Insets(14, 16, 14, 16));
+        box.setPadding(new Insets(12, 16, 12, 16));
 
-        HBox r1 = createRow("Estimated Return Time", returnLabel);
-        HBox r2 = createRow("Standard Campus Tariff", tariffLabel);
-        HBox r3 = createRow("Student ID Subsidy (25%)", discountLabel);
-        discountLabel.setStyle("-fx-text-fill: #2EB5A4; -fx-font-weight: 700;");
+        HBox r1 = createRow("Base Fare", baseFareLabel);
+        HBox r2 = createRow("Student Discount", discountLabel);
+        discountLabel.setStyle("-fx-text-fill: -fx-teal; -fx-font-weight: 700;");
 
         Separator sep = new Separator();
 
-        HBox r4 = createRow("Net Payable at Return", totalLabel);
-        totalLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #2EB5A4;");
+        HBox r3 = createRow("Total Due", totalDueLabel);
+        totalDueLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: -fx-teal;");
 
-        box.getChildren().addAll(r1, r2, r3, sep, r4);
+        box.getChildren().addAll(r1, r2, sep, r3);
         return box;
     }
 
@@ -215,19 +220,68 @@ public class ReservationModal extends StackPane {
         return row;
     }
 
-    private void updateTariffCalculation() {
+    private VBox createPaymentSelectorSection() {
+        VBox box = new VBox(8);
+
+        Label label = new Label("PAYMENT METHOD");
+        label.getStyleClass().add("metric-label");
+
+        rbCampusPay.setToggleGroup(paymentGroup);
+        rbDockPay.setToggleGroup(paymentGroup);
+        rbCampusPay.setSelected(true);
+
+        paymentGroup.selectedToggleProperty().addListener((obs, o, n) -> updateCalculations());
+
+        VBox payOptionsBox = new VBox(8, rbCampusPay, rbDockPay);
+        payOptionsBox.getStyleClass().add("sub-panel");
+        payOptionsBox.setPadding(new Insets(10, 14, 10, 14));
+
+        warningLabel.setStyle("-fx-text-fill: -fx-danger; -fx-font-size: 11.5px; -fx-font-weight: 700;");
+        warningLabel.setWrapText(true);
+        warningLabel.setVisible(false);
+        warningLabel.setManaged(false);
+
+        box.getChildren().addAll(label, payOptionsBox, warningLabel);
+        return box;
+    }
+
+    private void updateCalculations() {
         LocalTime due = LocalTime.now().plusMinutes(selectedMinutes);
         returnLabel.setText("Due by " + due.format(DateTimeFormatter.ofPattern("hh:mm a")));
 
-        int subtotalPoisha = bd.ac.kuet.campuscycle.domain.TariffService.quotePoisha(selectedMinutes);
+        // Base fare from TariffService
+        int basePoisha = TariffService.quotePoisha(selectedMinutes);
+        double baseBdt = basePoisha / 100.0;
 
-        boolean applySubsidy = rbSubsidy.isSelected() && (user.role() == Role.STUDENT);
-        int discountPoisha = bd.ac.kuet.campuscycle.domain.TariffService.subsidyPoisha(subtotalPoisha, applySubsidy);
-        int netPoisha = subtotalPoisha - discountPoisha;
+        // 20% Student Discount Applied (KUET Student Perk)
+        double discountBdt = baseBdt * 0.20;
+        double totalDueBdt = baseBdt - discountBdt;
 
-        tariffLabel.setText(String.format("BDT %.2f", subtotalPoisha / 100.0));
-        discountLabel.setText(applySubsidy ? String.format("- BDT %.2f", discountPoisha / 100.0) : "BDT 0.00");
-        totalLabel.setText(String.format("BDT %.2f", netPoisha / 100.0));
+        baseFareLabel.setText(String.format("৳ %.2f", baseBdt));
+        discountLabel.setText(String.format("-20%% Applied (KUET Student Perk) • -৳ %.2f", discountBdt));
+        totalDueLabel.setText(String.format("৳ %.2f", totalDueBdt));
+
+        // Wallet Balance check
+        double balance = WalletService.getInstance().getBalance(user);
+        rbCampusPay.setText(String.format("Prepaid Campus Pay (Balance: ৳ %.2f)", balance));
+
+        if (rbCampusPay.isSelected()) {
+            if (balance < totalDueBdt) {
+                warningLabel.setText(String.format("Insufficient balance (Need ৳%.2f). Top up in header.", totalDueBdt));
+                warningLabel.setVisible(true);
+                warningLabel.setManaged(true);
+                confirmBtn.setDisable(true);
+            } else {
+                warningLabel.setVisible(false);
+                warningLabel.setManaged(false);
+                confirmBtn.setDisable(false);
+            }
+        } else {
+            // Pay at Station Dock / bKash
+            warningLabel.setVisible(false);
+            warningLabel.setManaged(false);
+            confirmBtn.setDisable(false);
+        }
     }
 
     private HBox createActionButtons() {
@@ -238,29 +292,51 @@ public class ReservationModal extends StackPane {
         cancelBtn.getStyleClass().add("secondary-button");
         cancelBtn.setOnAction(e -> onClose.run());
 
-        Button confirmBtn = new Button("Confirm & Unlock Cycle");
         confirmBtn.getStyleClass().add("primary-button");
-        confirmBtn.setOnAction(e -> {
-            confirmBtn.setDisable(true);
-            confirmBtn.setText("Unlocking & Connecting...");
-
-            AppExecutor.asyncThenFx(
-                    () -> {
-                        RentalRecord record = repo.book(user, cycle.id(), selectedMinutes);
-                        EventBus.getInstance().publish(new RentalStartedEvent(record, Instant.now()));
-                        return record;
-                    },
-                    record -> onSuccess.run(),
-                    error -> {
-                        confirmBtn.setDisable(false);
-                        confirmBtn.setText("Confirm & Unlock Cycle");
-                        Alert alert = new Alert(Alert.AlertType.ERROR, "Reservation error: " + error.getMessage(), ButtonType.OK);
-                        alert.showAndWait();
-                    }
-            );
-        });
+        confirmBtn.setOnAction(e -> handleConfirmUnlock());
 
         row.getChildren().addAll(cancelBtn, confirmBtn);
         return row;
+    }
+
+    private void handleConfirmUnlock() {
+        confirmBtn.setDisable(true);
+        confirmBtn.setText("Unlocking Cycle...");
+
+        int basePoisha = TariffService.quotePoisha(selectedMinutes);
+        int discountPoisha = (int) Math.round(basePoisha * 0.20);
+        int netDuePoisha = basePoisha - discountPoisha;
+
+        AppExecutor.asyncThenFx(
+                () -> {
+                    // If Campus Pay selected, deduct fare from wallet
+                    if (rbCampusPay.isSelected()) {
+                        WalletService.getInstance().deductFare(
+                                user,
+                                netDuePoisha,
+                                cycle.id(),
+                                "Reservation: " + cycle.label() + " (" + selectedMinutes + "m)"
+                        );
+                    }
+
+                    // Book rental in repository
+                    RentalRecord record = repo.book(user, cycle.id(), selectedMinutes);
+
+                    // Update SQLite local database
+                    LocalDatabase.getInstance().saveRental(record);
+                    LocalDatabase.getInstance().updateCycleAvailability(cycle.id(), AvailabilityStatus.RENTED);
+
+                    // Notify EventBus
+                    EventBus.getInstance().publish(new RentalStartedEvent(record, Instant.now()));
+                    return record;
+                },
+                record -> onSuccess.run(),
+                error -> {
+                    confirmBtn.setDisable(false);
+                    confirmBtn.setText("Confirm & Unlock Cycle");
+                    Alert alert = new Alert(Alert.AlertType.ERROR, "Unable to reserve cycle: " + error.getMessage(), ButtonType.OK);
+                    alert.showAndWait();
+                }
+        );
     }
 }

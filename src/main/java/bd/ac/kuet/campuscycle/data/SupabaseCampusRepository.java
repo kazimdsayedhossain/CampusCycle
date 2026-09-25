@@ -27,6 +27,64 @@ public final class SupabaseCampusRepository implements CampusRepository {
     }
 
     @Override
+    public List<CycleItem> allCycles(CampusUser admin) {
+        if (!DatabaseConnection.isAvailable()) {
+            return fallback.allCycles(admin);
+        }
+
+        List<CycleItem> items = new ArrayList<>();
+        String sql = """
+                SELECT c.id, c.owner_id, COALESCE(p.display_name, 'KUET Member') AS owner_name,
+                       c.label, c.cycle_type, c.physical_condition, c.pickup_point,
+                       c.latitude, c.longitude, c.description, c.review_status, c.availability_status
+                FROM public.cycles c LEFT JOIN public.profiles p ON p.id = c.owner_id
+                ORDER BY c.label;
+                """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                items.add(mapCycleItem(rs));
+            }
+
+            if (items.isEmpty()) {
+                return fallback.allCycles(admin);
+            }
+            return items;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to load live allCycles; using local fallback.", e);
+            return fallback.allCycles(admin);
+        }
+    }
+
+    @Override
+    public void addCycle(CycleItem cycle) {
+        fallback.addCycle(cycle);
+        LocalDatabase.getInstance().saveCycle(cycle);
+    }
+
+    @Override
+    public void updateCycle(CycleItem cycle) {
+        fallback.updateCycle(cycle);
+        LocalDatabase.getInstance().saveCycle(cycle);
+    }
+
+    @Override
+    public void deleteCycle(String cycleId) {
+        fallback.deleteCycle(cycleId);
+        LocalDatabase.getInstance().deleteCycle(cycleId);
+    }
+
+    @Override
+    public void setCycleAvailability(String cycleId, AvailabilityStatus status) {
+        fallback.setCycleAvailability(cycleId, status);
+        LocalDatabase.getInstance().updateCycleAvailability(cycleId, status);
+    }
+
+    @Override
     public List<CycleItem> catalog(CampusUser user) {
         if (!DatabaseConnection.isAvailable()) {
             return fallback.catalog(user);

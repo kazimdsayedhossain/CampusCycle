@@ -15,12 +15,7 @@ import javafx.scene.paint.Color;
 import java.util.UUID;
 
 /**
- * Peer-to-Peer Cycle Listing Registration Modal.
- * Demonstrates:
- * 1. CRUD Create operation (creates new cycle listing in SQLite and Supabase)
- * 2. JavaFX UI controls (TextField, ComboBox, StackPane, Button, Label)
- * 3. Asynchronous background execution (AppExecutor)
- * 4. EventBus pub-sub notification
+ * Peer-to-Peer Cycle Listing Registration Modal for verified student bicycles.
  */
 public class CycleRegistrationModal extends StackPane {
 
@@ -207,10 +202,9 @@ public class CycleRegistrationModal extends StackPane {
                 AvailabilityStatus.AVAILABLE
         );
 
-        // Run background database persistence (local only; server insert goes via register_cycle RPC)
+        // Save registered cycle and notify observers
         AppExecutor.asyncThenFx(
                 () -> {
-                    // 1. Save in local SQLite database
                     LocalDatabase.getInstance().saveCycle(newCycle);
                     return newCycle;
                 },

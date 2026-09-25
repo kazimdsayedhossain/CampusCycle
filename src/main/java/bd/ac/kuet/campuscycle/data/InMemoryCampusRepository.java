@@ -38,13 +38,13 @@ public final class InMemoryCampusRepository implements CampusRepository {
                 "C-104", "owner-4", "Tanvir Ahmed", "Campus Glide",
                 CycleType.CITY_BIKE, CycleCondition.EXCELLENT, "Hall Gate",
                 22.9045, 89.5060, "Comfortable step-through commuter frame.",
-                ReviewStatus.APPROVED, AvailabilityStatus.AVAILABLE
+                ReviewStatus.APPROVED, AvailabilityStatus.MAINTENANCE
         ));
         cycles.add(new CycleItem(
                 "C-105", "owner-5", "Mehedi Hasan", "Eco Cruiser",
                 CycleType.ELECTRIC_BIKE, CycleCondition.GOOD, "Academic Building",
                 22.9015, 89.5010, "Smart throttle e-bike with solar dock lock.",
-                ReviewStatus.APPROVED, AvailabilityStatus.AVAILABLE
+                ReviewStatus.APPROVED, AvailabilityStatus.RENTED
         ));
         cycles.add(new CycleItem(
                 "C-106", "3d1e3d69-ffc6-494f-a42c-26eeb258b581", "Arafat Rahman", "Daily rider",
@@ -52,6 +52,34 @@ public final class InMemoryCampusRepository implements CampusRepository {
                 22.9045, 89.5060, "Student listing awaiting physical inspection.",
                 ReviewStatus.PENDING_REVIEW, AvailabilityStatus.AVAILABLE
         ));
+    }
+
+    @Override
+    public synchronized List<CycleItem> allCycles(CampusUser admin) {
+        return new ArrayList<>(cycles);
+    }
+
+    @Override
+    public synchronized void addCycle(CycleItem cycle) {
+        cycles.add(cycle);
+    }
+
+    @Override
+    public synchronized void updateCycle(CycleItem cycle) {
+        int index = findCycle(cycle.id());
+        cycles.set(index, cycle);
+    }
+
+    @Override
+    public synchronized void deleteCycle(String cycleId) {
+        cycles.removeIf(c -> c.id().equals(cycleId));
+    }
+
+    @Override
+    public synchronized void setCycleAvailability(String cycleId, AvailabilityStatus status) {
+        int index = findCycle(cycleId);
+        CycleItem c = cycles.get(index);
+        cycles.set(index, updateCycleAvailability(c, status));
     }
 
     @Override

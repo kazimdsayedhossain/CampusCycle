@@ -100,6 +100,36 @@ public class LocalDatabase {
                 );
             """);
 
+            // 4. Wallet Transactions table
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS local_wallet_transactions (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    amount_poisha INTEGER NOT NULL,
+                    transaction_type TEXT NOT NULL,
+                    balance_after_poisha INTEGER NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    description TEXT,
+                    reference_code TEXT
+                );
+            """);
+
+            // 5. Maintenance Tickets table
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS local_maintenance_tickets (
+                    id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    reported_by_user_id TEXT NOT NULL,
+                    issue_category TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'OPEN',
+                    reported_at TEXT NOT NULL,
+                    resolved_at TEXT,
+                    technician_notes TEXT,
+                    repair_cost_poisha INTEGER NOT NULL DEFAULT 0
+                );
+            """);
+
         } catch (SQLException e) {
             System.err.println("Failed to initialize SQLite local database: " + e.getMessage());
             e.printStackTrace();
@@ -208,6 +238,7 @@ public class LocalDatabase {
         }
         return list;
     }
+
 
     public List<RentalRecord> getRentalsByRenter(String renterId) {
         List<RentalRecord> list = new ArrayList<>();
@@ -320,6 +351,223 @@ public class LocalDatabase {
     }
 
     // ==========================================
+    // WALLET TRANSACTIONS CRUD
+    // ==========================================
+
+    public void saveWalletTransaction(WalletTransaction tx) {
+        String sql = """
+            INSERT INTO local_wallet_transactions (id, user_id, amount_poisha, transaction_type, balance_after_poisha, timestamp, description, reference_code)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                balance_after_poisha = excluded.balance_after_poisha,
+                description = excluded.description,
+                reference_code = excluded.reference_code;
+        """;
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, tx.id());
+            pstmt.setString(2, tx.userId());
+            pstmt.setInt(3, tx.amountPoisha());
+            pstmt.setString(4, tx.type());
+            pstmt.setInt(5, tx.balanceAfterPoisha());
+            pstmt.setString(6, tx.timestamp().toString());
+            pstmt.setString(7, tx.description());
+            pstmt.setString(8, tx.referenceCode());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("SQLite saveWalletTransaction error: " + e.getMessage());
+        }
+    }
+
+    public List<WalletTransaction> getWalletTransactionsByUserId(String userId) {
+        List<WalletTransaction> list = new ArrayList<>();
+        String sql = "SELECT * FROM local_wallet_transactions WHERE user_id = ? ORDER BY timestamp DESC;";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapWalletTransaction(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getWalletTransactionsByUserId error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    public List<WalletTransaction> getAllWalletTransactions() {
+        List<WalletTransaction> list = new ArrayList<>();
+        String sql = "SELECT * FROM local_wallet_transactions ORDER BY timestamp DESC;";
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                list.add(mapWalletTransaction(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getAllWalletTransactions error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    public Optional<Integer> getLatestWalletBalance(String userId) {
+        String sql = "SELECT balance_after_poisha FROM local_wallet_transactions WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1;";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(rs.getInt("balance_after_poisha"));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getLatestWalletBalance error: " + e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    // ==========================================
+    // MAINTENANCE TICKETS CRUD
+    // ==========================================
+
+    public void saveMaintenanceTicket(MaintenanceTicket ticket) {
+        String sql = """
+            INSERT INTO local_maintenance_tickets (id, cycle_id, reported_by_user_id, issue_category, description, status, reported_at, resolved_at, technician_notes, repair_cost_poisha)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                status = excluded.status,
+                resolved_at = excluded.resolved_at,
+                technician_notes = excluded.technician_notes,
+                repair_cost_poisha = excluded.repair_cost_poisha;
+        """;
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, ticket.id());
+            pstmt.setString(2, ticket.cycleId());
+            pstmt.setString(3, ticket.reportedByUserId());
+            pstmt.setString(4, ticket.issueCategory());
+            pstmt.setString(5, ticket.description());
+            pstmt.setString(6, ticket.status());
+            pstmt.setString(7, ticket.reportedAt().toString());
+            pstmt.setString(8, ticket.resolvedAt() != null ? ticket.resolvedAt().toString() : null);
+            pstmt.setString(9, ticket.technicianNotes());
+            pstmt.setInt(10, ticket.repairCostPoisha());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("SQLite saveMaintenanceTicket error: " + e.getMessage());
+        }
+    }
+
+    public Optional<MaintenanceTicket> getMaintenanceTicketById(String ticketId) {
+        String sql = "SELECT * FROM local_maintenance_tickets WHERE id = ? LIMIT 1;";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, ticketId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(mapMaintenanceTicket(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getMaintenanceTicketById error: " + e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    public List<MaintenanceTicket> getOpenMaintenanceTickets() {
+        List<MaintenanceTicket> list = new ArrayList<>();
+        String sql = "SELECT * FROM local_maintenance_tickets WHERE status != 'RESOLVED' ORDER BY reported_at DESC;";
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                list.add(mapMaintenanceTicket(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getOpenMaintenanceTickets error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    public List<MaintenanceTicket> getAllMaintenanceTickets() {
+        List<MaintenanceTicket> list = new ArrayList<>();
+        String sql = "SELECT * FROM local_maintenance_tickets ORDER BY reported_at DESC;";
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                list.add(mapMaintenanceTicket(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getAllMaintenanceTickets error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    // ==========================================
+    // FLEET & RENTALS AUDIT / EXTENSIONS
+    // ==========================================
+
+    public List<CycleItem> getAllCycles() {
+        List<CycleItem> list = new ArrayList<>();
+        String sql = "SELECT * FROM local_cycles ORDER BY label;";
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                list.add(mapCycle(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getAllCycles error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    public Optional<CycleItem> getCycleById(String cycleId) {
+        String sql = "SELECT * FROM local_cycles WHERE id = ?;";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, cycleId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(mapCycle(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getCycleById error: " + e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    public List<RentalRecord> getAllRentals() {
+        List<RentalRecord> list = new ArrayList<>();
+        String sql = "SELECT * FROM local_rentals ORDER BY started_at DESC;";
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                list.add(mapRental(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("SQLite getAllRentals error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    public void updateCycleLocation(String cycleId, String newLocation) {
+        String sql = "UPDATE local_cycles SET pickup_point = ? WHERE id = ?;";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, newLocation);
+            pstmt.setString(2, cycleId);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("SQLite updateCycleLocation error: " + e.getMessage());
+        }
+    }
+
+    // ==========================================
     // MAPPERS
     // ==========================================
 
@@ -357,6 +605,37 @@ public class LocalDatabase {
             start,
             due,
             returned
+        );
+    }
+
+    private WalletTransaction mapWalletTransaction(ResultSet rs) throws SQLException {
+        return new WalletTransaction(
+            rs.getString("id"),
+            rs.getString("user_id"),
+            rs.getInt("amount_poisha"),
+            rs.getString("transaction_type"),
+            rs.getInt("balance_after_poisha"),
+            ZonedDateTime.parse(rs.getString("timestamp")),
+            rs.getString("description"),
+            rs.getString("reference_code")
+        );
+    }
+
+    private MaintenanceTicket mapMaintenanceTicket(ResultSet rs) throws SQLException {
+        String resStr = rs.getString("resolved_at");
+        ZonedDateTime resolved = resStr != null ? ZonedDateTime.parse(resStr) : null;
+
+        return new MaintenanceTicket(
+            rs.getString("id"),
+            rs.getString("cycle_id"),
+            rs.getString("reported_by_user_id"),
+            rs.getString("issue_category"),
+            rs.getString("description"),
+            rs.getString("status"),
+            ZonedDateTime.parse(rs.getString("reported_at")),
+            resolved,
+            rs.getString("technician_notes"),
+            rs.getInt("repair_cost_poisha")
         );
     }
 }

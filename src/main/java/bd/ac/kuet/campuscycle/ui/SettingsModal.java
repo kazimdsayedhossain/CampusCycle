@@ -42,7 +42,7 @@ public class SettingsModal extends StackPane {
         HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_SETTINGS, 18, Color.web("#35BFAE")));
+        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_SETTINGS, 18, Color.web("#10B981")));
         icon.setPrefSize(36, 36);
         icon.getStyleClass().add("action-icon-btn");
 
@@ -84,7 +84,7 @@ public class SettingsModal extends StackPane {
 
     private VBox createNotificationsSection() {
         VBox box = new VBox(10);
-        Label label = new Label("SMART ALERTS & TELEMETRY");
+        Label label = new Label("NOTIFICATIONS & ALERTS");
         label.getStyleClass().add("metric-label");
 
         java.util.prefs.Preferences prefs = java.util.prefs.Preferences.userNodeForPackage(SettingsModal.class);
@@ -110,7 +110,7 @@ public class SettingsModal extends StackPane {
         HBox userRow = new HBox(12);
         userRow.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane avatar = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_USER, 16, Color.web("#35BFAE")));
+        StackPane avatar = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_USER, 16, Color.web("#10B981")));
         avatar.setPrefSize(34, 34);
         avatar.getStyleClass().add("action-icon-btn");
 

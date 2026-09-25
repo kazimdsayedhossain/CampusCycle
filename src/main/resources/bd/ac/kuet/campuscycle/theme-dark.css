@@ -9,22 +9,26 @@
  */
 
 * {
-    -fx-teal: #14B8A6;
-    -fx-teal-dark: #5EEAD4;
-    -fx-teal-soft: rgba(20,184,166,0.16);
-    -fx-navy: #14B8A6;
-    -fx-navy-soft: #0D9488;
-    -fx-orange: #FB923C;
-    -fx-ink-900: #F1F5F9;
-    -fx-ink-700: #CBD5E1;
+    -fx-primary: #3B82F6;
+    -fx-primary-dark: #60A5FA;
+    -fx-primary-soft: rgba(59, 130, 246, 0.16);
+    -fx-teal: #10B981;
+    -fx-teal-dark: #34D399;
+    -fx-teal-soft: rgba(16, 185, 129, 0.16);
+    -fx-navy: #10B981;
+    -fx-navy-soft: #059669;
+    -fx-orange: #F59E0B;
+    -fx-ink-900: #F8FAFC;
+    -fx-ink-700: #E2E8F0;
     -fx-ink-500: #94A3B8;
     -fx-ink-400: #64748B;
-    -fx-bg: #0B1120;
-    -fx-surface: #131B2E;
-    -fx-surface-alt: #1A2338;
-    -fx-border-c: #26314A;
+    -fx-bg: #0B132B;
+    -fx-surface: #1E293B;
+    -fx-surface-alt: #283548;
+    -fx-border-c: #334155;
     -fx-danger: #EF4444;
     -fx-success: #10B981;
+    -fx-warning: #F59E0B;
 }
 
 .root {
@@ -156,23 +160,66 @@ Label {
     -fx-alignment: top-center;
     -fx-background-color: transparent;
 }
+.context-menu,
 .nav-menu .context-menu {
-    -fx-background-color: -fx-surface;
-    -fx-background-radius: 14px;
-    -fx-border-color: -fx-border-c;
-    -fx-border-radius: 14px;
+    -fx-background-color: #1E293B;
+    -fx-background-radius: 12px;
+    -fx-border-color: #334155;
+    -fx-border-radius: 12px;
     -fx-padding: 6px;
-    -fx-effect: dropshadow(gaussian, rgba(15,23,42,0.16), 22, 0, 0, 10);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 18, 0, 0, 8);
 }
+.context-menu .menu-item,
 .nav-menu .menu-item {
-    -fx-background-radius: 10px;
-    -fx-padding: 8px 12px;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 14px;
+    -fx-background-color: transparent;
 }
-.nav-menu .menu-item .label { -fx-text-fill: -fx-ink-700; -fx-font-size: 12.5px; -fx-font-weight: 600; }
-.nav-menu .menu-item:focused, .nav-menu .menu-item:hovered {
-    -fx-background-color: -fx-teal-soft;
+.context-menu .menu-item .label,
+.context-menu .menu-item > .label,
+.nav-menu .menu-item .label {
+    -fx-text-fill: #F8FAFC;
+    -fx-font-size: 12.5px;
+    -fx-font-weight: 600;
 }
-.nav-menu .menu-item:focused .label, .nav-menu .menu-item:hovered .label { -fx-text-fill: -fx-teal-dark; }
+.context-menu .menu-item:focused,
+.context-menu .menu-item:hover,
+.nav-menu .menu-item:focused,
+.nav-menu .menu-item:hover {
+    -fx-background-color: rgba(16, 185, 129, 0.25);
+}
+.context-menu .menu-item:focused .label,
+.context-menu .menu-item:focused > .label,
+.context-menu .menu-item:hover .label,
+.context-menu .menu-item:hover > .label,
+.nav-menu .menu-item:focused .label,
+.nav-menu .menu-item:hovered .label {
+    -fx-text-fill: #34D399;
+}
+
+.wallet-pill {
+    -fx-background-color: -fx-surface;
+    -fx-background-radius: 999px;
+    -fx-border-color: -fx-border-c;
+    -fx-border-radius: 999px;
+    -fx-padding: 3px 4px 3px 12px;
+    -fx-alignment: center-left;
+}
+.wallet-pill:hover {
+    -fx-border-color: -fx-teal;
+}
+.wallet-topup-btn {
+    -fx-background-color: -fx-teal;
+    -fx-text-fill: white;
+    -fx-font-size: 11px;
+    -fx-font-weight: 800;
+    -fx-background-radius: 999px;
+    -fx-padding: 4px 10px;
+    -fx-cursor: hand;
+}
+.wallet-topup-btn:hover {
+    -fx-background-color: -fx-teal-dark;
+}
 
 .location-pill {
     -fx-background-color: -fx-teal-soft;
@@ -260,12 +307,10 @@ Label {
 }
 
 .metric-number {
-    -fx-font-size: 22px;
+    -fx-font-size: 24px;
     -fx-font-weight: 800;
     -fx-text-fill: -fx-ink-900;
-    -fx-border-color: transparent transparent -fx-orange transparent;
-    -fx-border-width: 0 0 2.5px 0;
-    -fx-padding: 0 2px 3px 0;
+    -fx-padding: 0;
 }
 
 .metric-badge {

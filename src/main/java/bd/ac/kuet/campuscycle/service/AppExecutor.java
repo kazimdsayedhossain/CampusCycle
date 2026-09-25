@@ -33,6 +33,14 @@ public class AppExecutor {
         }
     });
 
+    public static ExecutorService io() {
+        return IO_POOL;
+    }
+
+    public static void execute(Runnable runnable) {
+        IO_POOL.execute(runnable);
+    }
+
     /**
      * Executes an asynchronous task in the worker thread pool.
      */

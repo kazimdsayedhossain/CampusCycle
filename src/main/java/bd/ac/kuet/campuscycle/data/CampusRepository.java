@@ -18,6 +18,19 @@ public interface CampusRepository {
     void reviewCycle(CampusUser admin, String cycleId, boolean approved, String reason);
     void rebalanceHub(String sourceHub, String targetHub, int count);
 
+    /** Returns all cycles across the fleet for admin inventory management. */
+    default List<CycleItem> allCycles(CampusUser admin) {
+        return catalog(null);
+    }
+
+    default void addCycle(CycleItem cycle) {}
+
+    default void updateCycle(CycleItem cycle) {}
+
+    default void deleteCycle(String cycleId) {}
+
+    default void setCycleAvailability(String cycleId, bd.ac.kuet.campuscycle.domain.AvailabilityStatus status) {}
+
     /** Open a fare dispute for a RETURNED rental. Default unsupported for legacy impls. */
     default String openDispute(CampusUser renter, String rentalId, String reason) {
         throw new UnsupportedOperationException("Disputes are not supported by this repository.");

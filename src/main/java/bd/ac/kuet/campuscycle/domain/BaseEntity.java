@@ -8,7 +8,7 @@ import java.util.UUID;
  * Abstract base class demonstrating OOP inheritance, encapsulation,
  * and template method pattern for domain entities.
  */
-public abstract class BaseEntity {
+public abstract class BaseEntity implements Identifiable {
 
     private final String id;
     private final ZonedDateTime createdAt;
@@ -26,6 +26,11 @@ public abstract class BaseEntity {
      * @throws IllegalArgumentException if entity state is invalid
      */
     public abstract void validate() throws IllegalArgumentException;
+
+    @Override
+    public String id() {
+        return getId();
+    }
 
     public String getId() {
         return id;

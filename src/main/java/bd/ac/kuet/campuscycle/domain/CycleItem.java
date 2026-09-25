@@ -15,7 +15,7 @@ public record CycleItem(
         String description,
         ReviewStatus reviewStatus,
         AvailabilityStatus availabilityStatus
-) {
+) implements Rentable {
     public CycleItem {
         Objects.requireNonNull(id);
         Objects.requireNonNull(ownerId);

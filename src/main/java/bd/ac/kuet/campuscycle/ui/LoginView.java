@@ -1,6 +1,5 @@
 package bd.ac.kuet.campuscycle.ui;
 
-import bd.ac.kuet.campuscycle.data.DatabaseConnection;
 import bd.ac.kuet.campuscycle.data.SessionStore;
 import bd.ac.kuet.campuscycle.data.SupabaseAuthService;
 import bd.ac.kuet.campuscycle.domain.CampusUser;
@@ -78,14 +77,14 @@ public class LoginView extends StackPane {
         title.getStyleClass().add("brand-title");
         title.setStyle("-fx-font-size: 20px;");
 
-        Label sub = new Label("KUET SMART MOBILITY");
+        Label sub = new Label("CAMPUS COMMUTE");
         sub.getStyleClass().add("brand-sub");
 
         titleCol.getChildren().addAll(title, sub);
         logoRow.getChildren().addAll(iconCircle, titleCol);
 
         Label desc = new Label(
-                "Autonomous smart bicycle transit connecting university academic departments, student halls, and campus gates with zero carbon emissions."
+                "Smart bicycle transit for KUET students, faculty, and staff. Unlock cycles instantly across campus stations."
         );
         desc.setWrapText(true);
         desc.getStyleClass().add("metric-label");
@@ -94,9 +93,9 @@ public class LoginView extends StackPane {
         // Feature Bullets
         VBox features = new VBox(12);
         features.getChildren().addAll(
-                createFeatureItem(ThemeManager.ICON_LEAF, "100% Zero-Emission Commute", "Zero fuel, pure electric & pedal fleet"),
-                createFeatureItem(ThemeManager.ICON_PIN, "5 Smart Campus Hubs", "Automated quad-docks at Library, SWC, and Gates"),
-                createFeatureItem(ThemeManager.ICON_SHIELD, "Khulna Metropolitan Roaming", "Extended travel permitted throughout Khulna city")
+                createFeatureItem(ThemeManager.ICON_BIKE, "Campus-Wide Access", "Pickup and return at Library, SWC, Hall Gate, and Main Gate"),
+                createFeatureItem(ThemeManager.ICON_CHECK, "Student Perk Pricing", "20% student fare discount with verified KUET ID"),
+                createFeatureItem(ThemeManager.ICON_CARD, "Prepaid Campus Pay", "Instant wallet top-up via bKash, Nagad, or student ID")
         );
 
         Region spacer = new Region();
@@ -166,16 +165,6 @@ public class LoginView extends StackPane {
         sub.getStyleClass().add("metric-label");
         sub.setStyle("-fx-opacity: 0.75;");
         titleCol.getChildren().addAll(welcome, sub);
-
-        Label configNote = new Label();
-        if (DatabaseConnection.isAvailable()) {
-            configNote.setText("⚡ KUET Mobility Network • Live PostgreSQL Connected");
-            configNote.setStyle("-fx-text-fill: #2EB5A4; -fx-font-weight: 700; -fx-font-size: 11.5px;");
-        } else {
-            configNote.setText("⚡ KUET Smart Mobility • Local Persistence Store");
-            configNote.setStyle("-fx-text-fill: #35BFAE; -fx-font-weight: 700; -fx-font-size: 11.5px;");
-        }
-        configNote.getStyleClass().add("metric-label");
 
         // Email / Student Roll Input
         Label emailLbl = new Label("UNIVERSITY EMAIL / STUDENT ROLL");
@@ -295,7 +284,6 @@ public class LoginView extends StackPane {
         box.getChildren().addAll(
                 topRow,
                 titleCol,
-                configNote,
                 emailLbl, emailBox,
                 passLbl, passBox,
                 errorLbl,

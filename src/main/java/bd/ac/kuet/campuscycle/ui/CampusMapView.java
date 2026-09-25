@@ -33,7 +33,7 @@ public class CampusMapView extends VBox {
 
     public static final List<StationZone> ALL_ZONES = List.of(
             // 5 Campus Hubs
-            new StationZone("hub-1", "KUET Central Library", 22.9009, 89.5016, "CAMPUS", "Main library hub with automated quad-dock", "#2EB5A4", 32),
+            new StationZone("hub-1", "KUET Central Library", 22.9009, 89.5016, "CAMPUS", "Main library hub with campus bicycle docks", "#2EB5A4", 32),
             new StationZone("hub-2", "Student Welfare Centre", 22.9017, 89.5030, "CAMPUS", "SWC cafeteria & student plaza dock", "#2EB5A4", 28),
             new StationZone("hub-3", "KUET Main Gate", 22.8987, 89.4981, "CAMPUS", "Fulbarigate entrance connector", "#F59E0B", 24),
             new StationZone("hub-4", "Hall Gate", 22.9045, 89.5060, "CAMPUS", "Residential halls & sports ground gateway", "#8B5CF6", 20),
@@ -90,10 +90,10 @@ public class CampusMapView extends VBox {
         row.setAlignment(Pos.CENTER_LEFT);
 
         VBox titleCol = new VBox(2);
-        Label title = new Label("KUET & Khulna City Navigation Radar");
+        Label title = new Label("KUET Campus Map & Stations");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
 
-        Label sub = new Label("Live satellite & street telemetry covering KUET campus quad-docks and Khulna metropolitan free-roaming zones");
+        Label sub = new Label("Find nearby bike stations, available cycles, and campus dock hubs");
         sub.setStyle("-fx-font-size: 13px; -fx-opacity: 0.75;");
         titleCol.getChildren().addAll(title, sub);
 

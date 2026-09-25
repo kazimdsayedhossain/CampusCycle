@@ -63,7 +63,7 @@ public final class CampusCycleApplication extends Application {
     @Override
     public void start(Stage primaryStage) {
         this.stage = primaryStage;
-        stage.setTitle("CampusCycle | KUET Smart Mobility");
+        stage.setTitle("CampusCycle | KUET");
         ThemeManager.setTheme(ThemeManager.Theme.LIGHT);
         ThemeManager.themeProperty().addListener((obs, o, n) -> applyActiveTheme());
 
@@ -155,7 +155,7 @@ public final class CampusCycleApplication extends Application {
 
         Node content;
         switch (page) {
-            case "Fleet Catalog" -> {
+            case "Fleet Catalog", "Bikes" -> {
                 FleetCatalogView fleet = new FleetCatalogView(
                         currentUser,
                         repository,
@@ -168,13 +168,13 @@ public final class CampusCycleApplication extends Application {
                 activeFleet = fleet;
                 content = fleet;
             }
-            case "Campus Map" -> {
+            case "Campus Map", "Map" -> {
                 VBox mapWrap = new VBox(16);
                 mapWrap.setAlignment(Pos.TOP_CENTER);
                 mapWrap.setPadding(new Insets(16, 24, 24, 24));
                 mapWrap.setMaxWidth(1220);
 
-                Label mapLoading = new Label("Initializing KUET & Khulna Navigation Radar...");
+                Label mapLoading = new Label("Loading campus map...");
                 mapLoading.setStyle("-fx-font-size: 13px; -fx-opacity: 0.7;");
                 mapWrap.getChildren().add(mapLoading);
                 content = mapWrap;
@@ -212,7 +212,7 @@ public final class CampusCycleApplication extends Application {
                         }
                 );
             }
-            case "Active Journey" -> {
+            case "Active Journey", "My Ride" -> {
                 ActiveJourneyView journey = new ActiveJourneyView(
                         currentUser,
                         repository,
