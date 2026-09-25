@@ -48,6 +48,7 @@ public class FleetCatalogView extends VBox {
                             Consumer<CycleItem> onReserve,
                             Consumer<String> onLocationChanged,
                             Runnable onOpenRegister) {
+        ThemeManager.install(this);
         this.user = user;
         this.repo = repo;
         this.onReserve = onReserve;
@@ -98,7 +99,7 @@ public class FleetCatalogView extends VBox {
 
         Button toggleMapBtn = new Button("Toggle Station Map");
         toggleMapBtn.getStyleClass().add("secondary-button");
-        toggleMapBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_PIN, 13, Color.web("#1D4ED8")));
+        toggleMapBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_PIN, 13, Color.web("#0F172A")));
         toggleMapBtn.setOnAction(e -> {
             isMapVisible = !isMapVisible;
             mapContainer.setVisible(isMapVisible);
@@ -278,11 +279,11 @@ public class FleetCatalogView extends VBox {
         card.setMaxWidth(340);
 
         String accentColor = switch (cycle.type()) {
-            case ELECTRIC_BIKE -> "#10B981";
+            case ELECTRIC_BIKE -> "#2EB5A4";
             case ROAD_BIKE -> "#8B5CF6";
             case CARGO_BIKE -> "#F59E0B";
-            case CITY_BIKE -> "#0284C7";
-            default -> "#0EA5E9";
+            case CITY_BIKE -> "#2EB5A4";
+            default -> "#35BFAE";
         };
         card.setStyle(card.getStyle() + String.format("; -fx-border-color: transparent transparent transparent %s; -fx-border-width: 0 0 0 4px;", accentColor));
 
@@ -328,7 +329,7 @@ public class FleetCatalogView extends VBox {
         VBox priceCol = new VBox(1);
         Label rate = new Label(bd.ac.kuet.campuscycle.domain.TariffService.formatBdt(bd.ac.kuet.campuscycle.domain.TariffService.BASE_CHARGE_POISHA));
         rate.getStyleClass().add("metric-number");
-        rate.setStyle("-fx-text-fill: #1D4ED8;");
+        rate.setStyle("-fx-text-fill: #0F172A;");
 
         Label sub = new Label("First 15m • +10/15m");
         sub.getStyleClass().add("metric-label");

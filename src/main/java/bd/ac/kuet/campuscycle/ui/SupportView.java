@@ -36,6 +36,7 @@ public class SupportView extends VBox {
     private SupportConversation selected;
 
     public SupportView(CampusUser user, CampusRepository repo) {
+        ThemeManager.install(this);
         this.user = user;
         this.repo = repo;
         setSpacing(16);

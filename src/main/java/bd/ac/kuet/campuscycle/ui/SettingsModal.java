@@ -14,6 +14,7 @@ public class SettingsModal extends StackPane {
     private final Runnable onSignOut;
 
     public SettingsModal(CampusUser user, Runnable onClose, Runnable onSignOut) {
+        ThemeManager.install(this);
         this.user = user;
         this.onClose = onClose;
         this.onSignOut = onSignOut;
@@ -41,7 +42,7 @@ public class SettingsModal extends StackPane {
         HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_SETTINGS, 18, Color.web("#0EA5E9")));
+        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_SETTINGS, 18, Color.web("#35BFAE")));
         icon.setPrefSize(36, 36);
         icon.getStyleClass().add("action-icon-btn");
 
@@ -109,7 +110,7 @@ public class SettingsModal extends StackPane {
         HBox userRow = new HBox(12);
         userRow.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane avatar = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_USER, 16, Color.web("#0EA5E9")));
+        StackPane avatar = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_USER, 16, Color.web("#35BFAE")));
         avatar.setPrefSize(34, 34);
         avatar.getStyleClass().add("action-icon-btn");
 

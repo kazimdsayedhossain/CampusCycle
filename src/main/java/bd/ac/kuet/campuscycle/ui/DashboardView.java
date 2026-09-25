@@ -48,6 +48,7 @@ public class DashboardView extends VBox {
                          Consumer<String> onNavigate,
                          Consumer<CycleItem> onReserve,
                          Consumer<String> onLocationChanged) {
+        ThemeManager.install(this);
         this.user = user;
         this.repo = repo;
         this.onNavigate = onNavigate;
@@ -134,7 +135,7 @@ public class DashboardView extends VBox {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        StackPane iconBadge = new StackPane(ThemeManager.createIcon(svgIcon, 14, Color.web("#1D4ED8")));
+        StackPane iconBadge = new StackPane(ThemeManager.createIcon(svgIcon, 14, Color.web("#0F172A")));
         iconBadge.setPrefSize(28, 28);
         iconBadge.getStyleClass().add("action-icon-btn");
 
@@ -293,11 +294,11 @@ public class DashboardView extends VBox {
         card.setPadding(new Insets(18));
 
         String accentColor = switch (cycle.type()) {
-            case ELECTRIC_BIKE -> "#10B981";
+            case ELECTRIC_BIKE -> "#2EB5A4";
             case ROAD_BIKE -> "#8B5CF6";
             case CARGO_BIKE -> "#F59E0B";
-            case CITY_BIKE -> "#0284C7";
-            default -> "#0EA5E9";
+            case CITY_BIKE -> "#2EB5A4";
+            default -> "#35BFAE";
         };
         card.setStyle(card.getStyle() + String.format("; -fx-border-color: transparent transparent transparent %s; -fx-border-width: 0 0 0 4px;", accentColor));
 
@@ -335,7 +336,7 @@ public class DashboardView extends VBox {
         Label rate = new Label(bd.ac.kuet.campuscycle.domain.TariffService.formatBdt(
                 bd.ac.kuet.campuscycle.domain.TariffService.BASE_CHARGE_POISHA) + " / 15m");
         rate.getStyleClass().add("metric-number");
-        rate.setStyle("-fx-font-size: 13px; -fx-text-fill: #1D4ED8;");
+        rate.setStyle("-fx-font-size: 13px; -fx-text-fill: #0F172A;");
 
         Region sp2 = new Region();
         HBox.setHgrow(sp2, Priority.ALWAYS);

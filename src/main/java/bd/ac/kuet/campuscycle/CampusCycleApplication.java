@@ -65,6 +65,7 @@ public final class CampusCycleApplication extends Application {
         this.stage = primaryStage;
         stage.setTitle("CampusCycle | KUET Smart Mobility");
         ThemeManager.setTheme(ThemeManager.Theme.LIGHT);
+        ThemeManager.themeProperty().addListener((obs, o, n) -> applyActiveTheme());
 
         // Observer Pattern: subscribe to domain events to update UI reactively
         bd.ac.kuet.campuscycle.data.EventBus.getInstance().subscribe(
@@ -305,8 +306,13 @@ public final class CampusCycleApplication extends Application {
     private void applyActiveTheme() {
         if (scene == null) return;
         scene.getStylesheets().clear();
-        String cssPath = getClass().getResource("/bd/ac/kuet/campuscycle/" + ThemeManager.getTheme().cssFile()).toExternalForm();
-        scene.getStylesheets().add(cssPath);
+        URL css = getClass().getResource("/bd/ac/kuet/campuscycle/" + ThemeManager.getTheme().cssFile());
+        if (css == null) {
+            css = getClass().getResource("/" + ThemeManager.getTheme().cssFile());
+        }
+        if (css != null) {
+            scene.getStylesheets().add(css.toExternalForm());
+        }
     }
 
     public static void main(String[] args) {

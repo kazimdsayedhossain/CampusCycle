@@ -28,6 +28,7 @@ public class LoginView extends StackPane {
     private final Consumer<CampusUser> onLogin;
 
     public LoginView(Consumer<CampusUser> onLogin) {
+        ThemeManager.install(this);
         this.onLogin = onLogin;
 
         setAlignment(Pos.CENTER);
@@ -68,7 +69,7 @@ public class LoginView extends StackPane {
         HBox logoRow = new HBox(14);
         logoRow.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane iconCircle = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 22, Color.web("#1D4ED8")));
+        StackPane iconCircle = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 22, Color.web("#0F172A")));
         iconCircle.setPrefSize(48, 48);
         iconCircle.getStyleClass().add("action-icon-btn");
 
@@ -113,7 +114,7 @@ public class LoginView extends StackPane {
         HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane iconBox = new StackPane(ThemeManager.createIcon(svg, 14, Color.web("#1D4ED8")));
+        StackPane iconBox = new StackPane(ThemeManager.createIcon(svg, 14, Color.web("#0F172A")));
         iconBox.setPrefSize(32, 32);
         iconBox.getStyleClass().add("action-icon-btn");
 
@@ -169,10 +170,10 @@ public class LoginView extends StackPane {
         Label configNote = new Label();
         if (DatabaseConnection.isAvailable()) {
             configNote.setText("⚡ KUET Mobility Network • Live PostgreSQL Connected");
-            configNote.setStyle("-fx-text-fill: #10B981; -fx-font-weight: 700; -fx-font-size: 11.5px;");
+            configNote.setStyle("-fx-text-fill: #2EB5A4; -fx-font-weight: 700; -fx-font-size: 11.5px;");
         } else {
             configNote.setText("⚡ KUET Smart Mobility • Local Persistence Store");
-            configNote.setStyle("-fx-text-fill: #0EA5E9; -fx-font-weight: 700; -fx-font-size: 11.5px;");
+            configNote.setStyle("-fx-text-fill: #35BFAE; -fx-font-weight: 700; -fx-font-size: 11.5px;");
         }
         configNote.getStyleClass().add("metric-label");
 
@@ -286,7 +287,7 @@ public class LoginView extends StackPane {
         VBox hintBox = new VBox(4);
         hintBox.setStyle("-fx-padding: 10px 14px; -fx-background-color: rgba(2, 132, 199, 0.08); -fx-background-radius: 10px; -fx-border-color: rgba(2, 132, 199, 0.25); -fx-border-radius: 10px;");
         Label hintHeader = new Label("KUET Identity Access");
-        hintHeader.setStyle("-fx-font-size: 11px; -fx-font-weight: 800; -fx-text-fill: #0284C7;");
+        hintHeader.setStyle("-fx-font-size: 11px; -fx-font-weight: 800; -fx-text-fill: #2EB5A4;");
         Label hintBody = new Label("Student Account: arafat@kuet.ac.bd (or your student roll)\nCycle Office Admin: cycleoffice@kuet.ac.bd (password: any 6+ chars)");
         hintBody.setStyle("-fx-font-size: 10.5px; -fx-opacity: 0.8; -fx-line-spacing: 2px;");
         hintBox.getChildren().addAll(hintHeader, hintBody);

@@ -37,6 +37,7 @@ public class BingMapView extends StackPane {
     public BingMapView(List<CycleItem> availableCycles,
                        Consumer<String> onHubSelected,
                        Consumer<String> onLocationChanged) {
+        ThemeManager.install(this);
         this.onHubSelected = onHubSelected;
         this.onLocationChanged = onLocationChanged;
 
@@ -72,9 +73,9 @@ public class BingMapView extends StackPane {
         loadingOverlay.setAlignment(Pos.CENTER);
         loadingOverlay.setStyle("-fx-background-color: rgba(10, 15, 29, 0.85); -fx-background-radius: 14px;");
         Label loadingLabel = new Label("Loading Microsoft Bing Road Map...");
-        loadingLabel.setStyle("-fx-text-fill: #0EA5E9; -fx-font-weight: 700; -fx-font-size: 13px;");
+        loadingLabel.setStyle("-fx-text-fill: #35BFAE; -fx-font-weight: 700; -fx-font-size: 13px;");
         loadingOverlay.getChildren().addAll(
-                ThemeManager.createIcon(ThemeManager.ICON_PIN, 28, Color.web("#0EA5E9")),
+                ThemeManager.createIcon(ThemeManager.ICON_PIN, 28, Color.web("#35BFAE")),
                 loadingLabel
         );
 

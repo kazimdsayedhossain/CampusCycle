@@ -41,6 +41,7 @@ public class CycleRegistrationModal extends StackPane {
     private final Button submitBtn = new Button("Submit Cycle Listing");
 
     public CycleRegistrationModal(CampusUser user, Runnable onClose, Runnable onCycleCreated) {
+        ThemeManager.install(this);
         this.user = user;
         this.onClose = onClose;
         this.onCycleCreated = onCycleCreated;

@@ -33,14 +33,14 @@ public class CampusMapView extends VBox {
 
     public static final List<StationZone> ALL_ZONES = List.of(
             // 5 Campus Hubs
-            new StationZone("hub-1", "KUET Central Library", 22.9009, 89.5016, "CAMPUS", "Main library hub with automated quad-dock", "#0284C7", 32),
-            new StationZone("hub-2", "Student Welfare Centre", 22.9017, 89.5030, "CAMPUS", "SWC cafeteria & student plaza dock", "#10B981", 28),
+            new StationZone("hub-1", "KUET Central Library", 22.9009, 89.5016, "CAMPUS", "Main library hub with automated quad-dock", "#2EB5A4", 32),
+            new StationZone("hub-2", "Student Welfare Centre", 22.9017, 89.5030, "CAMPUS", "SWC cafeteria & student plaza dock", "#2EB5A4", 28),
             new StationZone("hub-3", "KUET Main Gate", 22.8987, 89.4981, "CAMPUS", "Fulbarigate entrance connector", "#F59E0B", 24),
             new StationZone("hub-4", "Hall Gate", 22.9045, 89.5060, "CAMPUS", "Residential halls & sports ground gateway", "#8B5CF6", 20),
             new StationZone("hub-5", "Academic Building", 22.9015, 89.5010, "CAMPUS", "CSE, EEE & Mechanical complex", "#EC4899", 20),
 
             // 7 Khulna City Roaming Checkpoints
-            new StationZone("zone-1", "Fulbarigate Transit Hub", 22.8950, 89.5040, "KHULNA", "Direct KUET link & market connection", "#0EA5E9", 15),
+            new StationZone("zone-1", "Fulbarigate Transit Hub", 22.8950, 89.5040, "KHULNA", "Direct KUET link & market connection", "#35BFAE", 15),
             new StationZone("zone-2", "Daulatpur Terminal", 22.8700, 89.5200, "KHULNA", "Midway Khulna transit corridor", "#3B82F6", 12),
             new StationZone("zone-3", "Khalishpur Commercial", 22.8550, 89.5300, "KHULNA", "Residential & shopping corridor", "#6366F1", 10),
             new StationZone("zone-4", "Boyra Civic Center", 22.8400, 89.5350, "KHULNA", "Civic center & hospital intersection", "#14B8A6", 10),
@@ -67,6 +67,7 @@ public class CampusMapView extends VBox {
                          List<CycleItem> cycles,
                          Consumer<String> onNavigate,
                          Consumer<String> onLocationChanged) {
+        ThemeManager.install(this);
         this.user = user;
         this.cycles = cycles != null ? cycles : new ArrayList<>();
         this.onNavigate = onNavigate;

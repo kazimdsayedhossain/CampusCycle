@@ -56,6 +56,7 @@ public class ActiveJourneyView extends VBox {
                              CampusRepository repo,
                              Consumer<String> onNavigate,
                              Runnable onRideFinished) {
+        ThemeManager.install(this);
         this.user = user;
         this.repo = repo;
         this.onNavigate = onNavigate;
@@ -113,7 +114,7 @@ public class ActiveJourneyView extends VBox {
         box.getStyleClass().add("bento-card");
         box.setMaxWidth(600);
 
-        StackPane iconCircle = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 28, Color.web("#94A3B8")));
+        StackPane iconCircle = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 28, Color.web("#8A948E")));
         iconCircle.setPrefSize(64, 64);
         iconCircle.getStyleClass().add("action-icon-btn");
 
@@ -136,7 +137,7 @@ public class ActiveJourneyView extends VBox {
         HBox row = new HBox(14);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BOLT, 18, Color.web("#10B981")));
+        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BOLT, 18, Color.web("#2EB5A4")));
         icon.setPrefSize(40, 40);
         icon.getStyleClass().add("action-icon-btn");
 
@@ -163,10 +164,10 @@ public class ActiveJourneyView extends VBox {
         grid.setHgap(16);
         grid.setVgap(16);
 
-        VBox c1 = createCockpitCard("ELAPSED TIME", timerLabel, "Ticking live from start", ThemeManager.ICON_CLOCK, "#0284C7");
-        VBox c2 = createCockpitCard("CURRENT TARIFF", fareLabel, "25% Subsidy applied", ThemeManager.ICON_SHIELD, "#10B981");
-        VBox c3 = createCockpitCard("ESTIMATED SPEED", speedLabel, "Hub telemetry sensor", ThemeManager.ICON_NAV, "#0EA5E9");
-        VBox c4 = createCockpitCard("DISTANCE CYCLED", distLabel, "Campus odometer", ThemeManager.ICON_PIN, "#0284C7");
+        VBox c1 = createCockpitCard("ELAPSED TIME", timerLabel, "Ticking live from start", ThemeManager.ICON_CLOCK, "#2EB5A4");
+        VBox c2 = createCockpitCard("CURRENT TARIFF", fareLabel, "25% Subsidy applied", ThemeManager.ICON_SHIELD, "#2EB5A4");
+        VBox c3 = createCockpitCard("ESTIMATED SPEED", speedLabel, "Hub telemetry sensor", ThemeManager.ICON_NAV, "#35BFAE");
+        VBox c4 = createCockpitCard("DISTANCE CYCLED", distLabel, "Campus odometer", ThemeManager.ICON_PIN, "#2EB5A4");
 
         grid.add(c1, 0, 0);
         grid.add(c2, 1, 0);
@@ -226,7 +227,7 @@ public class ActiveJourneyView extends VBox {
         sTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700;");
         Region sSp = new Region();
         HBox.setHgrow(sSp, Priority.ALWAYS);
-        assistModeLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 800; -fx-text-fill: #0284C7;");
+        assistModeLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 800; -fx-text-fill: #2EB5A4;");
         sliderHeader.getChildren().addAll(sTitle, sSp, assistModeLabel);
 
         Slider assistSlider = new Slider(1, 3, 1);
@@ -319,7 +320,7 @@ public class ActiveJourneyView extends VBox {
 
         Button returnBtn = new Button("Complete Return & Lock Cycle");
         returnBtn.getStyleClass().add("primary-button");
-        returnBtn.setStyle("-fx-background-color: linear-gradient(to right, #059669, #10B981);");
+        returnBtn.setStyle("-fx-background-color: linear-gradient(to right, #249A8B, #2EB5A4);");
 
         returnBtn.setOnAction(e -> {
             if (!c1.isSelected() || !c2.isSelected()) {

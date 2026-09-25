@@ -4,6 +4,7 @@ import javafx.animation.FadeTransition;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
@@ -42,6 +43,39 @@ public final class ThemeManager {
 
     public static void setTheme(Theme theme) {
         currentTheme.set(theme);
+    }
+
+    /**
+     * Installs the CampusCycle visual system on a UI root. The stylesheet is
+     * resolved from the classpath first and gracefully falls back to the
+     * existing application's stylesheet setup when the resource is absent.
+     */
+    public static void install(Node root) {
+        if (root == null) return;
+        if (!root.getStyleClass().contains("app-root")) {
+            root.getStyleClass().add("app-root");
+        }
+        if (!(root instanceof Parent parent)) return;
+        String resource = isDark() ? "theme-dark.css" : "theme-light.css";
+        java.net.URL url = ThemeManager.class.getResource("/" + resource);
+        if (url == null) {
+            url = ThemeManager.class.getResource("/bd/ac/kuet/campuscycle/" + resource);
+        }
+        if (url == null) {
+            url = ThemeManager.class.getResource(resource);
+        }
+        if (url != null && !parent.getStylesheets().contains(url.toExternalForm())) {
+            parent.getStylesheets().add(url.toExternalForm());
+        }
+        currentTheme.addListener((obs, oldTheme, newTheme) -> {
+            String next = newTheme == Theme.DARK ? "theme-dark.css" : "theme-light.css";
+            java.net.URL nextUrl = ThemeManager.class.getResource("/" + next);
+            if (nextUrl == null) nextUrl = ThemeManager.class.getResource("/bd/ac/kuet/campuscycle/" + next);
+            if (nextUrl == null) nextUrl = ThemeManager.class.getResource(next);
+            if (nextUrl == null) return;
+            parent.getStylesheets().removeIf(u -> u.endsWith("theme-light.css") || u.endsWith("theme-dark.css"));
+            parent.getStylesheets().add(nextUrl.toExternalForm());
+        });
     }
 
     // High-Precision Vector SVG Paths

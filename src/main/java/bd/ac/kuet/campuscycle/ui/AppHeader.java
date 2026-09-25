@@ -33,7 +33,7 @@ public class AppHeader extends HBox {
     private final List<Button> navButtons = new ArrayList<>();
     private String activePage = "Dashboard";
     private final Button locationBtn = new Button("Central Field");
-    private final Circle activeRideDot = new Circle(4, Color.web("#10B981"));
+    private final Circle activeRideDot = new Circle(4, Color.web("#2EB5A4"));
     private final MenuButton moreMenu = new MenuButton("More");
 
     public AppHeader(CampusUser user,
@@ -41,6 +41,7 @@ public class AppHeader extends HBox {
                      Consumer<String> onNavigate,
                      Runnable onOpenSettings,
                      Runnable onSelectLocation) {
+        ThemeManager.install(this);
         this.user = user;
         this.onNavigate = onNavigate;
         this.onOpenSettings = onOpenSettings;
@@ -77,7 +78,7 @@ public class AppHeader extends HBox {
         StackPane iconStage = new StackPane();
         iconStage.setPrefSize(38, 38);
         iconStage.getStyleClass().add("action-icon-btn");
-        iconStage.getChildren().add(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 20, Color.web("#0284C7")));
+        iconStage.getChildren().add(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 20, Color.web("#2EB5A4")));
 
         Label title = new Label("CampusCycle");
         title.getStyleClass().add("brand-title");
@@ -184,7 +185,7 @@ public class AppHeader extends HBox {
         userChip.setAlignment(Pos.CENTER_LEFT);
         userChip.getStyleClass().add("user-chip");
 
-        StackPane userAvatar = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_USER, 14, Color.web("#0284C7")));
+        StackPane userAvatar = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_USER, 14, Color.web("#2EB5A4")));
         userAvatar.setPrefSize(24, 24);
 
         VBox userMeta = new VBox(0);

@@ -66,6 +66,7 @@ public class PassbookView extends VBox {
     private final ListView<String> auditListView = new ListView<>();
 
     public PassbookView(CampusUser user, CampusRepository repo) {
+        ThemeManager.install(this);
         this.user = user;
         this.repo = repo;
 
@@ -103,7 +104,7 @@ public class PassbookView extends VBox {
 
         Button exportBtn = new Button("Export Statement (CSV)");
         exportBtn.getStyleClass().add("secondary-button");
-        exportBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_CHECK, 13, Color.web("#0284C7")));
+        exportBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_CHECK, 13, Color.web("#2EB5A4")));
         exportBtn.setTooltip(new Tooltip("Generate KUET Green Mobility transit statement (CSV)"));
         exportBtn.setOnAction(e -> exportStatementCsv(exportBtn));
 
@@ -116,9 +117,9 @@ public class PassbookView extends VBox {
         grid.setHgap(16);
         grid.setVgap(16);
 
-        VBox c1 = createMetricCard("COMPLETED RIDES", completedVal, "Verified handovers", ThemeManager.ICON_BIKE, "#0284C7");
-        VBox c2 = createMetricCard("TOTAL DISTANCE", distanceVal, "Zero-emission travel", ThemeManager.ICON_PIN, "#10B981");
-        VBox c3 = createMetricCard("CAMPUS SUBSIDY SAVED", subsidyVal, "25% KUET Green Mobility", ThemeManager.ICON_SHIELD, "#0284C7");
+        VBox c1 = createMetricCard("COMPLETED RIDES", completedVal, "Verified handovers", ThemeManager.ICON_BIKE, "#2EB5A4");
+        VBox c2 = createMetricCard("TOTAL DISTANCE", distanceVal, "Zero-emission travel", ThemeManager.ICON_PIN, "#2EB5A4");
+        VBox c3 = createMetricCard("CAMPUS SUBSIDY SAVED", subsidyVal, "25% KUET Green Mobility", ThemeManager.ICON_SHIELD, "#2EB5A4");
 
         grid.add(c1, 0, 0);
         grid.add(c2, 1, 0);

@@ -37,6 +37,7 @@ public class AdminOperationsView extends VBox {
     private final VBox pendingListContainer = new VBox(12);
 
     public AdminOperationsView(CampusUser admin, CampusRepository repo, Runnable onRefresh) {
+        ThemeManager.install(this);
         this.admin = admin;
         this.repo = repo;
         this.onRefresh = onRefresh;
@@ -76,7 +77,7 @@ public class AdminOperationsView extends VBox {
 
         Button refreshBtn = new Button("Refresh Fleet");
         refreshBtn.getStyleClass().add("secondary-button");
-        refreshBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_REFRESH, 13, Color.web("#0284C7")));
+        refreshBtn.setGraphic(ThemeManager.createIcon(ThemeManager.ICON_REFRESH, 13, Color.web("#2EB5A4")));
         refreshBtn.setTooltip(new Tooltip("Pull latest live fleet status from Supabase"));
         refreshBtn.setOnAction(e -> loadAdminDataAsync());
 
@@ -89,10 +90,10 @@ public class AdminOperationsView extends VBox {
         grid.setHgap(16);
         grid.setVgap(16);
 
-        VBox c1 = createBentoCard("TOTAL CAMPUS FLEET", totalFleetVal, new Label("Live Tracked Units"), ThemeManager.ICON_BIKE, "#0284C7");
+        VBox c1 = createBentoCard("TOTAL CAMPUS FLEET", totalFleetVal, new Label("Live Tracked Units"), ThemeManager.ICON_BIKE, "#2EB5A4");
         VBox c2 = createBentoCard("PENDING APPROVALS", pendingApprovalsVal, new Label("Queued for Review"), ThemeManager.ICON_ALERT, "#F59E0B");
-        VBox c3 = createBentoCard("EST. CO2 AVOIDED", co2Val, new Label("2.8 km avg per ride"), ThemeManager.ICON_LEAF, "#10B981");
-        VBox c4 = createBentoCard("HUBS ONLINE", new Label("5 Hubs"), new Label("KUET Network"), ThemeManager.ICON_DISPATCH, "#0284C7");
+        VBox c3 = createBentoCard("EST. CO2 AVOIDED", co2Val, new Label("2.8 km avg per ride"), ThemeManager.ICON_LEAF, "#2EB5A4");
+        VBox c4 = createBentoCard("HUBS ONLINE", new Label("5 Hubs"), new Label("KUET Network"), ThemeManager.ICON_DISPATCH, "#2EB5A4");
 
         grid.add(c1, 0, 0);
         grid.add(c2, 1, 0);
@@ -191,7 +192,7 @@ public class AdminOperationsView extends VBox {
         dispatchBtn.setTooltip(new Tooltip("Trigger cycle redistribution between selected campus hubs"));
 
         Label feedbackLbl = new Label();
-        feedbackLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #10B981;");
+        feedbackLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #2EB5A4;");
         feedbackLbl.setVisible(false);
 
         dispatchBtn.setOnAction(e -> {
@@ -214,7 +215,7 @@ public class AdminOperationsView extends VBox {
                     res -> {
                         dispatchBtn.setDisable(false);
                         feedbackLbl.setText("Transferred " + qty + " cycles from " + src + " to " + dst);
-                        feedbackLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #10B981;");
+                        feedbackLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #2EB5A4;");
                         feedbackLbl.setVisible(true);
                         loadAdminDataAsync();
                     },
@@ -404,7 +405,7 @@ public class AdminOperationsView extends VBox {
                         Label ok = new Label("All campus cycle submissions verified. Zero pending approval requests.");
                         ok.setStyle("-fx-font-size: 13px; -fx-font-weight: 650; -fx-opacity: 0.8;");
                         emptyBox.getChildren().addAll(
-                                ThemeManager.createIcon(ThemeManager.ICON_CHECK, 16, Color.web("#10B981")),
+                                ThemeManager.createIcon(ThemeManager.ICON_CHECK, 16, Color.web("#2EB5A4")),
                                 ok
                         );
                         pendingListContainer.getChildren().add(emptyBox);
@@ -427,7 +428,7 @@ public class AdminOperationsView extends VBox {
         row.getStyleClass().add("sub-panel");
         row.setPadding(new Insets(14, 18, 14, 18));
 
-        StackPane bikeIcon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 16, Color.web("#0284C7")));
+        StackPane bikeIcon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 16, Color.web("#2EB5A4")));
         bikeIcon.setPrefSize(36, 36);
         bikeIcon.getStyleClass().add("action-icon-btn");
 

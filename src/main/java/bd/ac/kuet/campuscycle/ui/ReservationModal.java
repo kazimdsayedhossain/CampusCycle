@@ -41,6 +41,7 @@ public class ReservationModal extends StackPane {
                             CampusRepository repo,
                             Runnable onClose,
                             Runnable onSuccess) {
+        ThemeManager.install(this);
         this.cycle = cycle;
         this.user = user;
         this.repo = repo;
@@ -73,7 +74,7 @@ public class ReservationModal extends StackPane {
         HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 18, Color.web("#0284C7")));
+        StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 18, Color.web("#2EB5A4")));
         icon.setPrefSize(36, 36);
         icon.getStyleClass().add("action-icon-btn");
 
@@ -131,7 +132,7 @@ public class ReservationModal extends StackPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        timeLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #0284C7;");
+        timeLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #2EB5A4;");
         labelRow.getChildren().addAll(durHeading, spacer, timeLabel);
 
         Slider slider = new Slider(15, 180, 30);
@@ -190,12 +191,12 @@ public class ReservationModal extends StackPane {
         HBox r1 = createRow("Estimated Return Time", returnLabel);
         HBox r2 = createRow("Standard Campus Tariff", tariffLabel);
         HBox r3 = createRow("Student ID Subsidy (25%)", discountLabel);
-        discountLabel.setStyle("-fx-text-fill: #10B981; -fx-font-weight: 700;");
+        discountLabel.setStyle("-fx-text-fill: #2EB5A4; -fx-font-weight: 700;");
 
         Separator sep = new Separator();
 
         HBox r4 = createRow("Net Payable at Return", totalLabel);
-        totalLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #0284C7;");
+        totalLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #2EB5A4;");
 
         box.getChildren().addAll(r1, r2, r3, sep, r4);
         return box;
