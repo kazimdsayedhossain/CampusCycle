@@ -257,6 +257,17 @@ public final class AnimationHelper {
 
     // ---------- Ambient Floating Leaf ----------
 
+    /**
+     * Fill colour for the falling leaf, fully opaque on purpose. The fade is owned
+     * entirely by {@link #AMBIENT_LEAF_PEAK_OPACITY}; baking alpha into the fill as
+     * well multiplied the two and left the leaf at roughly 8% alpha, which is why it
+     * never appeared.
+     */
+    public static final String AMBIENT_LEAF_FILL = "#10B981";
+
+    /** Strongest alpha the leaf reaches mid-drift. Faint, but actually visible. */
+    public static final double AMBIENT_LEAF_PEAK_OPACITY = 0.32;
+
     private static LeafFloater leafFloater;
 
     /** Starts a subtle leaf floating across the window. */
@@ -282,7 +293,7 @@ public final class AnimationHelper {
 
         LeafFloater(Pane layer) {
             this.layer = layer;
-            this.leaf = ThemeManager.createIcon(ThemeManager.ICON_LEAF, 24, Color.web("#10B981", 0.28));
+            this.leaf = ThemeManager.createIcon(ThemeManager.ICON_LEAF, 26, Color.web(AMBIENT_LEAF_FILL));
             this.leaf.setMouseTransparent(true);
             this.leaf.setOpacity(0);
         }
@@ -309,11 +320,14 @@ public final class AnimationHelper {
             }
             startX = -60;
             endX = w + 60;
-            baseY = h * 0.15 + Math.random() * h * 0.6;
-            amplitude = 18 + Math.random() * 26;
-            wavelength = 180 + Math.random() * 160;
-            durationS = 14 + Math.random() * 8; // slow, ambient — never distracting
-            peakOpacity = 0.22 + Math.random() * 0.12;
+            // Drift through the content area, not just the margins: the page is
+            // translucent so the leaf reads across cards and the map, and the top
+            // band is kept clear of the header controls.
+            baseY = 120 + Math.random() * Math.max(60, h - 300);
+            amplitude = 14 + Math.random() * 18;
+            wavelength = 150 + Math.random() * 140;
+            durationS = 11 + Math.random() * 7; // slow, ambient — never distracting
+            peakOpacity = AMBIENT_LEAF_PEAK_OPACITY + Math.random() * 0.08;
             spin = (Math.random() < 0.5 ? -1 : 1) * (20 + Math.random() * 25);
             double startRot = -15 + Math.random() * 30;
 
