@@ -11,8 +11,6 @@ Roll: 2307050
 
 Academic project for **Advanced Programming**, KUET.
 
----
-
 ## What it does
 
 - **Student** — browse cycles, book one for 15 to 180 minutes, watch the fare tick up,
@@ -38,17 +36,13 @@ Owner gets            fare minus the platform fee
 ```
 
 The platform keeps the fare and pays the owner when the cycle comes back. All of it
-happens in one database transaction, so either the whole ride settles or none of it does.
-
-Two rules matter most:
+runs in one database transaction, so either the whole ride settles or none of it does.
 
 - The owner is never paid money the platform has not actually received.
 - Money that could not be collected is never lost. It becomes a due on the rider's
   account, blocks the next booking, and clears itself on the next top up.
 
 ## Topics used
-
-These are the course topics, and what the project used them for.
 
 | Topic | How it was used |
 |---|---|
@@ -61,10 +55,9 @@ These are the course topics, and what the project used them for.
 | **Data manipulation** | Full CRUD on users, cycles, rentals, maintenance tickets, disputes, support threads and wallets |
 | **Networking and data parsing** | HTTP calls to Supabase Auth, Bing map tiles and FreeRoute, with the JSON responses parsed into objects |
 
-Extra things used on top of the list: SQL stored functions and triggers for fare
-authority, PBKDF2 password hashing, a JWT session store, CSV export, a custom animation
-system, a generated brand identity, and JUnit 5 tests that run against both an in-memory
-double and the real database.
+Also used: stored functions and triggers so the database owns the fare, PBKDF2 password
+hashing, a JWT session store, CSV export, a small animation system, and JUnit 5 tests
+that run against both an in-memory copy of the rules and the real database.
 
 ## Running it
 
@@ -106,15 +99,12 @@ version is a working copy of the rules so they can be tested without a database.
 mvn test
 ```
 
-68 tests. Most run on their own. The rest talk to the real database and check the parts
-that would be expensive to get wrong: the fare always adds up, an owner is never
-overpaid, unpaid money becomes a due and clears on top up, a late fine cannot be dodged
-or invented by editing the client, and a student cannot sign in before an admin approves
-them.
+68 tests. Most run on their own. The rest talk to the real database and check the money
+path: the fare always adds up, an owner is never overpaid, unpaid money becomes a due and
+clears on top up, a late fine cannot be dodged by editing the client, and a student
+cannot sign in before an admin approves them.
 
 ## Not finished
-
-Being straight about it:
 
 - bKash withdrawal is not connected. The screen takes the details and stops there.
 - The platform fee is recorded and totalled, but there is no separate account it can be
