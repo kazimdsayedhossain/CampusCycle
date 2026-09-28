@@ -2,37 +2,54 @@ package bd.ac.kuet.campuscycle.ui;
 
 import bd.ac.kuet.campuscycle.data.CampusRepository;
 import bd.ac.kuet.campuscycle.data.EventBus;
-import bd.ac.kuet.campuscycle.data.LocalDatabase;
-import bd.ac.kuet.campuscycle.domain.AvailabilityStatus;
+import bd.ac.kuet.campuscycle.domain.CampusTime;
 import bd.ac.kuet.campuscycle.domain.CampusUser;
 import bd.ac.kuet.campuscycle.domain.CycleItem;
+import bd.ac.kuet.campuscycle.domain.Money;
 import bd.ac.kuet.campuscycle.domain.RentalRecord;
+import bd.ac.kuet.campuscycle.domain.Role;
 import bd.ac.kuet.campuscycle.domain.TariffService;
 import bd.ac.kuet.campuscycle.domain.event.RentalStartedEvent;
 import bd.ac.kuet.campuscycle.service.AppExecutor;
 import bd.ac.kuet.campuscycle.service.WalletService;
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.AccessibleRole;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.util.Duration;
 
 import java.time.Instant;
-import java.time.LocalTime;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.logging.Logger;
 
 /**
  * Clean Reservation Modal:
  * 1. Title: "Reserve Cycle"
  * 2. Duration selector pills: 15 mins, 30 mins, 1 hour, 2 hours
- * 3. Pricing breakdown: Base Fare, Student Discount (-20% Applied), Total Due
+ * 3. Pricing breakdown: Base Fare, Student Discount, Total Due
  * 4. Payment Selector: Prepaid Campus Pay vs Station Dock / bKash
  * 5. Insufficient balance validation with header top-up guidance
  * 6. Clean "Confirm & Unlock Cycle" action
+ *
+ * <p>Money-integrity contract (P-017, P-113, P-114, P-180): the booking commits
+ * FIRST and the wallet is charged second, so a failed booking can never leave a
+ * stray debit. A charge failure after a successful booking triggers the guarded
+ * {@code refundFare} reversal before the error surfaces.
  */
 public class ReservationModal extends StackPane {
+
+    private static final Logger LOGGER = Logger.getLogger(ReservationModal.class.getName());
 
     private final CycleItem cycle;
     private final CampusUser user;
@@ -47,12 +64,16 @@ public class ReservationModal extends StackPane {
     private final Label baseFareLabel = new Label();
     private final Label discountLabel = new Label();
     private final Label totalDueLabel = new Label();
+    private HBox discountRow;
+    private final Label campusPayBalanceLabel = new Label();
 
-    private final RadioButton rbCampusPay = new RadioButton();
+    private final RadioButton rbCampusPay = new RadioButton("Prepaid Campus Pay");
     private final RadioButton rbDockPay = new RadioButton("Pay at Station Dock / bKash");
     private final ToggleGroup paymentGroup = new ToggleGroup();
     private final Label warningLabel = new Label();
     private final Button confirmBtn = new Button("Confirm & Unlock Cycle");
+    private int cachedBalancePoisha = 0;
+    private Timeline dueTicker;
 
     public ReservationModal(CycleItem cycle,
                             CampusUser user,
@@ -65,6 +86,11 @@ public class ReservationModal extends StackPane {
         this.repo = repo;
         this.onClose = onClose;
         this.onSuccess = onSuccess;
+
+        setAccessibleRole(AccessibleRole.DIALOG);
+
+        // Seed with memory-cached balance immediately
+        this.cachedBalancePoisha = user != null ? WalletService.getInstance().getBalancePoisha(user.id()) : 0;
 
         getStyleClass().add("modal-overlay");
         setAlignment(Pos.CENTER);
@@ -86,6 +112,55 @@ public class ReservationModal extends StackPane {
 
         updateCalculations();
         ThemeManager.applyFadeIn(this);
+        startDueTicker();
+        parentProperty().addListener((obs, oldParent, newParent) -> {
+            if (newParent == null) {
+                stopDueTicker();
+            }
+        });
+
+        // ESC closes the modal; initial focus lands on the primary action.
+        setFocusTraversable(true);
+        setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ESCAPE) {
+                close();
+            }
+        });
+        Platform.runLater(() -> confirmBtn.requestFocus());
+
+        // Background refresh to guarantee fresh live balance without UI blocking
+        AppExecutor.asyncThenFx(
+                () -> user != null ? WalletService.getInstance().getBalancePoisha(user.id()) : 0,
+                bal -> {
+                    this.cachedBalancePoisha = bal;
+                    updateCalculations();
+                },
+                err -> {}
+        );
+    }
+
+    private void close() {
+        stopDueTicker();
+        onClose.run();
+    }
+
+    private void startDueTicker() {
+        stopDueTicker();
+        dueTicker = new Timeline(new KeyFrame(Duration.seconds(30), e -> refreshDueBy()));
+        dueTicker.setCycleCount(Animation.INDEFINITE);
+        dueTicker.play();
+    }
+
+    private void stopDueTicker() {
+        if (dueTicker != null) {
+            dueTicker.stop();
+            dueTicker = null;
+        }
+    }
+
+    private void refreshDueBy() {
+        ZonedDateTime due = CampusTime.now().plusMinutes(selectedMinutes);
+        returnLabel.setText("Due by " + due.format(DateTimeFormatter.ofPattern("hh:mm a", Locale.US)));
     }
 
     private HBox createHeader() {
@@ -94,7 +169,7 @@ public class ReservationModal extends StackPane {
 
         StackPane icon = new StackPane(ThemeManager.createIcon(ThemeManager.ICON_BIKE, 18, Color.web("#10B981")));
         icon.setPrefSize(38, 38);
-        icon.getStyleClass().add("action-icon-btn");
+        icon.getStyleClass().add("icon-badge");
 
         VBox titleCol = new VBox(2);
         Label title = new Label("Reserve Cycle");
@@ -108,7 +183,7 @@ public class ReservationModal extends StackPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button closeBtn = ThemeManager.createIconButton(ThemeManager.ICON_CLOSE, 14, "action-icon-btn", onClose);
+        Button closeBtn = ThemeManager.createIconButton(ThemeManager.ICON_CLOSE, 14, "action-icon-btn", this::close);
 
         row.getChildren().addAll(icon, titleCol, spacer, closeBtn);
         return row;
@@ -123,7 +198,7 @@ public class ReservationModal extends StackPane {
         top.setAlignment(Pos.CENTER_LEFT);
 
         Label name = new Label(cycle.label());
-        name.setStyle("-fx-font-size: 14px; -fx-font-weight: 750;");
+        name.setStyle("-fx-font-size: 14px; -fx-font-weight: 800;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -150,7 +225,7 @@ public class ReservationModal extends StackPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        returnLabel.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 650; -fx-text-fill: -fx-teal;");
+        returnLabel.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 700; -fx-text-fill: -fx-teal;");
         labelRow.getChildren().addAll(heading, spacer, returnLabel);
 
         // Duration selector pills: 15 mins, 30 mins, 1 hour, 2 hours
@@ -195,7 +270,7 @@ public class ReservationModal extends StackPane {
         box.setPadding(new Insets(12, 16, 12, 16));
 
         HBox r1 = createRow("Base Fare", baseFareLabel);
-        HBox r2 = createRow("Student Discount", discountLabel);
+        discountRow = createRow("Student Discount", discountLabel);
         discountLabel.setStyle("-fx-text-fill: -fx-teal; -fx-font-weight: 700;");
 
         Separator sep = new Separator();
@@ -203,7 +278,7 @@ public class ReservationModal extends StackPane {
         HBox r3 = createRow("Total Due", totalDueLabel);
         totalDueLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: -fx-teal;");
 
-        box.getChildren().addAll(r1, r2, sep, r3);
+        box.getChildren().addAll(r1, discountRow, sep, r3);
         return box;
     }
 
@@ -215,7 +290,7 @@ public class ReservationModal extends StackPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        valueLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 650;");
+        valueLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 700;");
         row.getChildren().addAll(l, spacer, valueLabel);
         return row;
     }
@@ -232,7 +307,12 @@ public class ReservationModal extends StackPane {
 
         paymentGroup.selectedToggleProperty().addListener((obs, o, n) -> updateCalculations());
 
-        VBox payOptionsBox = new VBox(8, rbCampusPay, rbDockPay);
+        // Static radio label + live balance readout kept separate (P-180).
+        campusPayBalanceLabel.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 700; -fx-text-fill: -fx-teal;");
+        HBox campusPayRow = new HBox(8, rbCampusPay, campusPayBalanceLabel);
+        campusPayRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox payOptionsBox = new VBox(8, campusPayRow, rbDockPay);
         payOptionsBox.getStyleClass().add("sub-panel");
         payOptionsBox.setPadding(new Insets(10, 14, 10, 14));
 
@@ -246,28 +326,31 @@ public class ReservationModal extends StackPane {
     }
 
     private void updateCalculations() {
-        LocalTime due = LocalTime.now().plusMinutes(selectedMinutes);
-        returnLabel.setText("Due by " + due.format(DateTimeFormatter.ofPattern("hh:mm a")));
+        refreshDueBy();
 
-        // Base fare from TariffService
+        boolean isStudent = user != null && user.role() == Role.STUDENT;
+
+        // Base fare from TariffService; discount only for students (P-113).
         int basePoisha = TariffService.quotePoisha(selectedMinutes);
-        double baseBdt = basePoisha / 100.0;
+        int discountPoisha = TariffService.subsidyPoisha(basePoisha, isStudent);
+        int totalDuePoisha = basePoisha - discountPoisha;
 
-        // 20% Student Discount Applied (KUET Student Perk)
-        double discountBdt = baseBdt * 0.20;
-        double totalDueBdt = baseBdt - discountBdt;
+        baseFareLabel.setText(Money.formatTaka(basePoisha));
+        if (isStudent) {
+            int pct = (int) Math.round(TariffService.STUDENT_SUBSIDY_RATE * 100);
+            discountLabel.setText("-" + pct + "% Applied (KUET Student Perk) • -" + Money.formatTaka(discountPoisha));
+        }
+        discountRow.setVisible(isStudent);
+        discountRow.setManaged(isStudent);
+        totalDueLabel.setText(Money.formatTaka(totalDuePoisha));
 
-        baseFareLabel.setText(String.format("৳ %.2f", baseBdt));
-        discountLabel.setText(String.format("-20%% Applied (KUET Student Perk) • -৳ %.2f", discountBdt));
-        totalDueLabel.setText(String.format("৳ %.2f", totalDueBdt));
-
-        // Wallet Balance check
-        double balance = WalletService.getInstance().getBalance(user);
-        rbCampusPay.setText(String.format("Prepaid Campus Pay (Balance: ৳ %.2f)", balance));
+        // Wallet Balance check from cached balance (0ms UI latency)
+        int balancePoisha = this.cachedBalancePoisha;
+        campusPayBalanceLabel.setText("(Balance: " + Money.formatTaka(balancePoisha) + ")");
 
         if (rbCampusPay.isSelected()) {
-            if (balance < totalDueBdt) {
-                warningLabel.setText(String.format("Insufficient balance (Need ৳%.2f). Top up in header.", totalDueBdt));
+            if (balancePoisha < totalDuePoisha) {
+                warningLabel.setText("Insufficient balance (Need " + Money.formatTaka(totalDuePoisha) + "). Top up in header.");
                 warningLabel.setVisible(true);
                 warningLabel.setManaged(true);
                 confirmBtn.setDisable(true);
@@ -290,7 +373,7 @@ public class ReservationModal extends StackPane {
 
         Button cancelBtn = new Button("Cancel");
         cancelBtn.getStyleClass().add("secondary-button");
-        cancelBtn.setOnAction(e -> onClose.run());
+        cancelBtn.setOnAction(e -> close());
 
         confirmBtn.getStyleClass().add("primary-button");
         confirmBtn.setOnAction(e -> handleConfirmUnlock());
@@ -303,34 +386,32 @@ public class ReservationModal extends StackPane {
         confirmBtn.setDisable(true);
         confirmBtn.setText("Unlocking Cycle...");
 
-        int basePoisha = TariffService.quotePoisha(selectedMinutes);
-        int discountPoisha = (int) Math.round(basePoisha * 0.20);
-        int netDuePoisha = basePoisha - discountPoisha;
+        boolean payWithCampusPay = rbCampusPay.isSelected();
+        CampusRepository.PaymentMethod method = payWithCampusPay
+                ? CampusRepository.PaymentMethod.CAMPUS_PAY
+                : CampusRepository.PaymentMethod.DOCK_PAY;
 
         AppExecutor.asyncThenFx(
                 () -> {
-                    // If Campus Pay selected, deduct fare from wallet
-                    if (rbCampusPay.isSelected()) {
-                        WalletService.getInstance().deductFare(
-                                user,
-                                netDuePoisha,
-                                cycle.id(),
-                                "Reservation: " + cycle.label() + " (" + selectedMinutes + "m)"
-                        );
+                    // Book with atomic wallet charge for Campus Pay (P-017, P-026).
+                    // The wallet is debited inside the same transaction as the booking,
+                    // so a failed booking can never leave a stray debit.
+                    RentalRecord record = repo.book(user, cycle.id(), selectedMinutes, method);
+
+                    // Campus Pay debited the wallet inside the booking transaction, so
+                    // refresh every screen that shows a balance.
+                    if (method == CampusRepository.PaymentMethod.CAMPUS_PAY) {
+                        WalletService.getInstance().refreshAndNotifyBalance(user.id());
                     }
-
-                    // Book rental in repository
-                    RentalRecord record = repo.book(user, cycle.id(), selectedMinutes);
-
-                    // Update SQLite local database
-                    LocalDatabase.getInstance().saveRental(record);
-                    LocalDatabase.getInstance().updateCycleAvailability(cycle.id(), AvailabilityStatus.RENTED);
 
                     // Notify EventBus
                     EventBus.getInstance().publish(new RentalStartedEvent(record, Instant.now()));
                     return record;
                 },
-                record -> onSuccess.run(),
+                record -> {
+                    stopDueTicker();
+                    onSuccess.run();
+                },
                 error -> {
                     confirmBtn.setDisable(false);
                     confirmBtn.setText("Confirm & Unlock Cycle");
@@ -339,4 +420,5 @@ public class ReservationModal extends StackPane {
                 }
         );
     }
-}
+
+    }

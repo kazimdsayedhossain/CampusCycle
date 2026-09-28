@@ -1,9 +1,14 @@
 package bd.ac.kuet.campuscycle.service;
 
-import bd.ac.kuet.campuscycle.data.LocalDatabase;
+import bd.ac.kuet.campuscycle.data.CampusRepository;
+import bd.ac.kuet.campuscycle.data.DatabaseConnection;
+import bd.ac.kuet.campuscycle.data.SupabaseCampusRepository;
+import bd.ac.kuet.campuscycle.domain.CampusUser;
 import bd.ac.kuet.campuscycle.domain.CycleItem;
 import bd.ac.kuet.campuscycle.domain.MaintenanceTicket;
+import bd.ac.kuet.campuscycle.domain.RentalDue;
 import bd.ac.kuet.campuscycle.domain.RentalRecord;
+import bd.ac.kuet.campuscycle.domain.Role;
 import bd.ac.kuet.campuscycle.domain.WalletTransaction;
 import javafx.concurrent.Task;
 
@@ -12,77 +17,87 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Service orchestrating background CSV export of fleet assets,
  * rental logs, maintenance tickets, and wallet transactions.
+ * Uses Supabase as the single source of truth (no local DB).
  */
 public class ReportService {
 
     private static ReportService instance;
-    private final LocalDatabase localDatabase;
 
     public static synchronized ReportService getInstance() {
         if (instance == null) {
-            instance = new ReportService(LocalDatabase.getInstance());
+            instance = new ReportService();
         }
         return instance;
     }
 
-    public ReportService() {
-        this(LocalDatabase.getInstance());
-    }
-
-    public ReportService(LocalDatabase localDatabase) {
-        this.localDatabase = Objects.requireNonNull(localDatabase, "LocalDatabase must not be null");
-    }
+    private ReportService() {}
 
     /**
      * Resolves the default destination file on the user's Desktop (or home directory).
      */
     public static File getDefaultReportFile() {
+        return getDefaultReportFile(null);
+    }
+
+    public static File getDefaultReportFile(CampusUser user) {
         String userHome = System.getProperty("user.home");
         File desktop = new File(userHome, "Desktop");
         File targetDir = (desktop.exists() && desktop.isDirectory()) ? desktop : new File(userHome);
         String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-        return new File(targetDir, "CampusCycle_Report_" + timestamp + ".csv");
+        String namePart = (user != null && user.displayName() != null)
+                ? "_" + user.displayName().replaceAll("[^a-zA-Z0-9]", "")
+                : "";
+        return new File(targetDir, "CampusCycle_Report" + namePart + "_" + timestamp + ".csv");
     }
 
     /**
      * Creates a JavaFX Task for exporting the CSV report with progress tracking.
      */
     public Task<File> createExportTask() {
-        return createExportTask(getDefaultReportFile());
+        return createExportTask(getDefaultReportFile(null), null);
     }
 
-    /**
-     * Creates a JavaFX Task for exporting the CSV report to a specific file.
-     */
     public Task<File> createExportTask(File destinationFile) {
-        return new ExportReportTask(destinationFile);
+        return createExportTask(destinationFile, null);
+    }
+
+    public Task<File> createExportTask(File destinationFile, CampusUser currentUser) {
+        return new ExportReportTask(destinationFile, currentUser);
     }
 
     /**
      * Executes the report export asynchronously in the AppExecutor thread pool.
      */
     public CompletableFuture<File> exportReportAsync() {
-        return exportReportAsync(getDefaultReportFile());
+        return exportReportAsync(getDefaultReportFile(null), null);
     }
 
-    /**
-     * Executes the report export asynchronously to the specified file in the AppExecutor thread pool.
-     */
     public CompletableFuture<File> exportReportAsync(File targetFile) {
-        Task<File> task = createExportTask(targetFile);
+        return exportReportAsync(targetFile, null);
+    }
+
+    public CompletableFuture<File> exportReportAsync(File targetFile, CampusUser currentUser) {
+        Task<File> task = createExportTask(targetFile, currentUser);
         CompletableFuture<File> future = new CompletableFuture<>();
 
         task.setOnSucceeded(e -> future.complete(task.getValue()));
         task.setOnFailed(e -> future.completeExceptionally(task.getException()));
+        task.setOnCancelled(e -> future.completeExceptionally(new CancellationException("Report export cancelled")));
 
         AppExecutor.execute(task);
         return future;
@@ -92,25 +107,112 @@ public class ReportService {
      * Synchronously exports data to the target file.
      */
     public File exportReportSync(File targetFile) throws IOException {
-        File file = targetFile != null ? targetFile : getDefaultReportFile();
+        return exportReportSync(targetFile, null);
+    }
+
+    public File exportReportSync(File targetFile, CampusUser currentUser) throws IOException {
+        File file = targetFile != null ? targetFile : getDefaultReportFile(currentUser);
         if (file.getParentFile() != null && !file.getParentFile().exists()) {
             file.getParentFile().mkdirs();
         }
 
-        List<CycleItem> cycles = localDatabase.getAllCycles();
-        List<RentalRecord> rentals = localDatabase.getAllRentals();
-        List<MaintenanceTicket> tickets = localDatabase.getAllMaintenanceTickets();
-        List<WalletTransaction> transactions = localDatabase.getAllWalletTransactions();
-
-        writeCsvReport(file, cycles, rentals, tickets, transactions);
+        ReportData data = collect(currentUser);
+        writeCsvReport(file, data.cycles(), data.rentals(), data.tickets(), data.transactions(), data.dues());
         return file;
+    }
+
+    /** Collected report rows with the caller's visibility applied. */
+    private record ReportData(
+            List<CycleItem> cycles,
+            List<RentalRecord> rentals,
+            List<MaintenanceTicket> tickets,
+            List<WalletTransaction> transactions,
+            List<RentalDue> dues) {}
+
+    /**
+     * Shared collection used by both the sync and async (Task) export paths.
+     * Fail-closed: a {@code null} user is least-privileged, never admin (P-009).
+     */
+    private ReportData collect(CampusUser currentUser) {
+        List<CycleItem> cycles = new ArrayList<>();
+        List<RentalRecord> rentals = new ArrayList<>();
+        List<MaintenanceTicket> tickets = new ArrayList<>();
+        List<WalletTransaction> transactions = new ArrayList<>();
+        List<RentalDue> dues = new ArrayList<>();
+
+        boolean isAdmin = currentUser != null && currentUser.role() == Role.ADMIN;
+
+        if (DatabaseConnection.isAvailable()) {
+            try {
+                CampusRepository repo = new SupabaseCampusRepository();
+                cycles.addAll(repo.allCycles(null));
+                if (isAdmin) {
+                    rentals.addAll(repo.allRentals(currentUser));
+                    tickets.addAll(MaintenanceService.getInstance().getAllTickets());
+                    transactions.addAll(fetchAllLiveTransactions(null));
+                    try {
+                        dues.addAll(repo.allDues(currentUser));
+                    } catch (Exception ignored) {}
+                } else if (currentUser != null) {
+                    rentals.addAll(repo.rentals(currentUser));
+                    transactions.addAll(fetchAllLiveTransactions(currentUser.id()));
+                }
+            } catch (Exception e) {
+                // Log but continue with empty lists
+                java.util.logging.Logger.getLogger(ReportService.class.getName())
+                        .warning("Failed to collect live data for report: " + e.getMessage());
+            }
+        }
+
+        return new ReportData(cycles, rentals, tickets, transactions, dues);
+    }
+
+    /**
+     * Fetches all wallet transactions from Supabase for the given user (or all if admin).
+     */
+    private List<WalletTransaction> fetchAllLiveTransactions(String userIdOrNull) {
+        List<WalletTransaction> list = new ArrayList<>();
+        String sql = userIdOrNull == null
+                ? "SELECT id, user_id, amount_poisha, transaction_type, balance_after_poisha, timestamp, description, reference_code FROM public.wallet_transactions ORDER BY timestamp DESC"
+                : "SELECT id, user_id, amount_poisha, transaction_type, balance_after_poisha, timestamp, description, reference_code FROM public.wallet_transactions WHERE user_id = ? ORDER BY timestamp DESC";
+
+        if (!DatabaseConnection.isAvailable()) {
+            return list;
+        }
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            if (userIdOrNull != null) {
+                stmt.setString(1, userIdOrNull);
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new WalletTransaction(
+                            rs.getString("id"),
+                            rs.getString("user_id"),
+                            rs.getInt("amount_poisha"),
+                            rs.getString("transaction_type"),
+                            rs.getInt("balance_after_poisha"),
+                            rs.getTimestamp("timestamp") != null
+                                    ? rs.getTimestamp("timestamp").toInstant().atZone(ZoneId.of("Asia/Dhaka"))
+                                    : ZonedDateTime.now(),
+                            rs.getString("description"),
+                            rs.getString("reference_code")
+                    ));
+                }
+            }
+        } catch (Exception e) {
+            java.util.logging.Logger.getLogger(ReportService.class.getName())
+                    .warning("Failed to fetch wallet transactions for report: " + e.getMessage());
+        }
+        return list;
     }
 
     private void writeCsvReport(File file,
                                 List<CycleItem> cycles,
                                 List<RentalRecord> rentals,
                                 List<MaintenanceTicket> tickets,
-                                List<WalletTransaction> transactions) throws IOException {
+                                List<WalletTransaction> transactions,
+                                List<RentalDue> dues) throws IOException {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, StandardCharsets.UTF_8))) {
             writer.write("# ==============================================================================");
             writer.newLine();
@@ -148,7 +250,7 @@ public class ReportService {
             // SECTION 2: RENTALS
             writer.write("--- SECTION: RENTAL RECORDS ---");
             writer.newLine();
-            writer.write("RentalId,CycleId,CycleLabel,RenterId,RequestedMinutes,QuotedAmountPoisha,Status,StartedAt,DueAt,ReturnedAt");
+            writer.write("RentalId,CycleId,CycleLabel,RenterId,RequestedMinutes,QuotedAmountPoisha,FinalAmountPoisha,PlatformFeePoisha,OwnerPayoutPoisha,Status,StartedAt,DueAt,ReturnedAt");
             writer.newLine();
             for (RentalRecord r : rentals) {
                 writer.write(String.join(",",
@@ -158,6 +260,9 @@ public class ReportService {
                         escapeCsv(r.renterId()),
                         escapeCsv(r.requestedMinutes()),
                         escapeCsv(r.quotedAmountPoisha()),
+                        escapeCsv(r.finalAmountPoisha()),
+                        escapeCsv(r.platformFeePoisha()),
+                        escapeCsv(r.ownerPayoutPoisha()),
                         escapeCsv(r.status()),
                         escapeCsv(r.startedAt()),
                         escapeCsv(r.dueAt()),
@@ -207,12 +312,39 @@ public class ReportService {
                 ));
                 writer.newLine();
             }
+            writer.newLine();
+
+            // SECTION 5: RIDE DUES (persistent overdue/overtime debt)
+            writer.write("--- SECTION: RIDE DUES ---");
+            writer.newLine();
+            writer.write("DueId,RentalId,UserId,AmountPoisha,PaidPoisha,OutstandingPoisha,State,Reason,CreatedAt");
+            writer.newLine();
+            for (RentalDue d : dues) {
+                writer.write(String.join(",",
+                        escapeCsv(d.id()),
+                        escapeCsv(d.rentalId()),
+                        escapeCsv(d.userId()),
+                        escapeCsv(d.amountPoisha()),
+                        escapeCsv(d.paidPoisha()),
+                        escapeCsv(d.outstandingPoisha()),
+                        escapeCsv(d.state()),
+                        escapeCsv(d.reason()),
+                        escapeCsv(d.createdAt())
+                ));
+                writer.newLine();
+            }
         }
     }
 
     private static String escapeCsv(Object val) {
         if (val == null) return "";
         String s = String.valueOf(val);
+        // Neutralise formula injection before quoting (P-010): user-controlled
+        // label / description / message cells starting with = + - @ TAB CR
+        // would otherwise execute on open in Excel/Sheets.
+        if (!s.isEmpty() && "=+-@\t\r".indexOf(s.charAt(0)) >= 0) {
+            s = "'" + s;
+        }
         if (s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")) {
             return "\"" + s.replace("\"", "\"\"") + "\"";
         }
@@ -224,58 +356,39 @@ public class ReportService {
      */
     public class ExportReportTask extends Task<File> {
         private final File destinationFile;
+        private final CampusUser currentUser;
 
         public ExportReportTask(File destinationFile) {
-            this.destinationFile = destinationFile != null ? destinationFile : getDefaultReportFile();
+            this(destinationFile, null);
+        }
+
+        public ExportReportTask(File destinationFile, CampusUser currentUser) {
+            this.destinationFile = destinationFile;
+            this.currentUser = currentUser;
         }
 
         @Override
         protected File call() throws Exception {
-            updateSafeMessage("Preparing report export...");
-            updateSafeProgress(0, 5);
+            if (isCancelled()) return null;
+            updateProgress(0, 4);
+            ReportData data = collect(currentUser);
 
-            if (destinationFile.getParentFile() != null && !destinationFile.getParentFile().exists()) {
-                destinationFile.getParentFile().mkdirs();
+            if (isCancelled()) return null;
+            updateProgress(1, 4);
+
+            File file = destinationFile != null ? destinationFile : getDefaultReportFile(currentUser);
+            if (file.getParentFile() != null && !file.getParentFile().exists()) {
+                file.getParentFile().mkdirs();
             }
 
-            updateSafeMessage("Exporting Fleet Cycles...");
-            List<CycleItem> cycles = localDatabase.getAllCycles();
-            updateSafeProgress(1, 5);
+            if (isCancelled()) return null;
+            updateProgress(2, 4);
 
-            updateSafeMessage("Exporting Rental Logs...");
-            List<RentalRecord> rentals = localDatabase.getAllRentals();
-            updateSafeProgress(2, 5);
+            writeCsvReport(file, data.cycles(), data.rentals(), data.tickets(), data.transactions(), data.dues());
 
-            updateSafeMessage("Exporting Maintenance Tickets...");
-            List<MaintenanceTicket> tickets = localDatabase.getAllMaintenanceTickets();
-            updateSafeProgress(3, 5);
-
-            updateSafeMessage("Exporting Wallet Transactions...");
-            List<WalletTransaction> transactions = localDatabase.getAllWalletTransactions();
-            updateSafeProgress(4, 5);
-
-            updateSafeMessage("Writing CSV Report to disk...");
-            writeCsvReport(destinationFile, cycles, rentals, tickets, transactions);
-            updateSafeProgress(5, 5);
-
-            updateSafeMessage("Export completed: " + destinationFile.getName());
-            return destinationFile;
-        }
-
-        private void updateSafeProgress(long workDone, long max) {
-            try {
-                updateProgress(workDone, max);
-            } catch (IllegalStateException ignored) {
-                // Non-JavaFX headless test runner
-            }
-        }
-
-        private void updateSafeMessage(String msg) {
-            try {
-                updateMessage(msg);
-            } catch (IllegalStateException ignored) {
-                // Non-JavaFX headless test runner
-            }
+            if (isCancelled()) return null;
+            updateProgress(4, 4);
+            return file;
         }
     }
 }

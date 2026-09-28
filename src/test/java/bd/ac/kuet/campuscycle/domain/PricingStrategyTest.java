@@ -28,7 +28,7 @@ public class PricingStrategyTest {
                 "Standard Commuter",
                 CycleType.CITY_BIKE,
                 CycleCondition.EXCELLENT,
-                "KUET Central Library",
+                "KUET Central Mosque",
                 22.9009,
                 89.5016,
                 "Fleet test bike",
@@ -46,18 +46,18 @@ public class PricingStrategyTest {
         assertEquals(0, standard.calculatePricePoisha(testCycle, 0, studentUser));
         assertEquals(0, standard.calculatePricePoisha(testCycle, -5, studentUser));
 
-        // Base 15 minutes: 1500 poisha (৳15.00)
-        assertEquals(1500, standard.calculatePricePoisha(testCycle, 15, studentUser));
-        assertEquals(1500, standard.calculatePricePoisha(testCycle, 10, studentUser));
+        // Base 15 minutes: 2000 poisha (৳20.00)
+        assertEquals(2000, standard.calculatePricePoisha(testCycle, 15, studentUser));
+        assertEquals(2000, standard.calculatePricePoisha(testCycle, 10, studentUser));
 
-        // 30 minutes: 1500 + 1000 = 2500 poisha (৳25.00)
-        assertEquals(2500, standard.calculatePricePoisha(testCycle, 30, studentUser));
+        // 30 minutes: 2000 + 1000 = 3000 poisha (৳30.00)
+        assertEquals(3000, standard.calculatePricePoisha(testCycle, 30, studentUser));
 
-        // 45 minutes: 1500 + 2000 = 3500 poisha (৳35.00)
-        assertEquals(3500, standard.calculatePricePoisha(testCycle, 45, studentUser));
+        // 45 minutes: 2000 + 2000 = 4000 poisha (৳40.00)
+        assertEquals(4000, standard.calculatePricePoisha(testCycle, 45, studentUser));
 
         // Fractional block (e.g. 20 minutes -> rounds up to 1 extra block)
-        assertEquals(2500, standard.calculatePricePoisha(testCycle, 20, studentUser));
+        assertEquals(3000, standard.calculatePricePoisha(testCycle, 20, studentUser));
     }
 
     @Test
@@ -65,13 +65,13 @@ public class PricingStrategyTest {
         PricingStrategy riderStrategy = new RiderPricingStrategy();
         assertEquals("Rider", riderStrategy.getStrategyName());
 
-        // 20% discount on base fare of 1500 poisha: 1500 * 0.8 = 1200 poisha (৳12.00)
+        // 25% discount on base fare of 2000 poisha: 2000 * 0.75 = 1500 poisha (৳15.00)
         int price15 = riderStrategy.calculatePricePoisha(testCycle, 15, studentUser);
-        assertEquals(1200, price15);
+        assertEquals(1500, price15);
 
-        // 20% discount on 30 min standard (2500 poisha): 2500 * 0.8 = 2000 poisha (৳20.00)
+        // 25% discount on 30 min standard (3000 poisha): 3000 * 0.75 = 2250 poisha (৳22.50)
         int price30 = riderStrategy.calculatePricePoisha(testCycle, 30, studentUser);
-        assertEquals(2000, price30);
+        assertEquals(2250, price30);
     }
 
     @Test
@@ -80,9 +80,9 @@ public class PricingStrategyTest {
 
         // Admin does not get student subsidy
         int adminPrice15 = riderStrategy.calculatePricePoisha(testCycle, 15, adminUser);
-        assertEquals(1500, adminPrice15);
+        assertEquals(2000, adminPrice15);
 
         int adminPrice30 = riderStrategy.calculatePricePoisha(testCycle, 30, adminUser);
-        assertEquals(2500, adminPrice30);
+        assertEquals(3000, adminPrice30);
     }
 }

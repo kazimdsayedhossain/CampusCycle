@@ -6,11 +6,11 @@ import bd.ac.kuet.campuscycle.domain.Role;
 
 /**
  * Rider pricing strategy:
- * Applies a 20% discount for students/riders on base rate calculation.
+ * Applies a 25% discount for students/riders on base rate calculation.
  */
 public class RiderPricingStrategy implements PricingStrategy {
 
-    public static final double DISCOUNT_RATE = 0.20;
+    public static final double DISCOUNT_RATE = bd.ac.kuet.campuscycle.domain.TariffService.STUDENT_SUBSIDY_RATE;
     private final StandardPricingStrategy standardPricing;
 
     public RiderPricingStrategy() {
@@ -28,7 +28,7 @@ public class RiderPricingStrategy implements PricingStrategy {
             return 0;
         }
 
-        boolean isRider = (user == null || user.role() == Role.STUDENT);
+        boolean isRider = (user != null && user.role() == Role.STUDENT);
         if (!isRider) {
             return standardPrice;
         }

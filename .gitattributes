@@ -1,0 +1,19 @@
+# Normalise line endings: store LF in the repository, check out with the platform
+# default. Keeps diffs clean when the project is edited on Windows and elsewhere.
+* text=auto eol=lf
+
+*.java  text eol=lf
+*.sql   text eol=lf
+*.md    text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.xml   text eol=lf
+*.fxml  text eol=lf
+*.txt   text eol=lf
+*.properties text eol=lf
+
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary

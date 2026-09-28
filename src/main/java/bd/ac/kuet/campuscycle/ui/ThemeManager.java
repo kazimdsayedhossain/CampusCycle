@@ -4,7 +4,6 @@ import javafx.animation.FadeTransition;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.Node;
-import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
@@ -21,7 +20,16 @@ public final class ThemeManager {
         public String cssFile() { return cssFile; }
     }
 
-    private static final ObjectProperty<Theme> currentTheme = new SimpleObjectProperty<>(Theme.LIGHT);
+    private static final java.util.prefs.Preferences PREFS = java.util.prefs.Preferences.userNodeForPackage(ThemeManager.class);
+    private static final ObjectProperty<Theme> currentTheme;
+    static {
+        String saved = PREFS.get("selected_theme", Theme.LIGHT.name());
+        Theme initial = Theme.LIGHT;
+        try {
+            initial = Theme.valueOf(saved);
+        } catch (Exception ignored) {}
+        currentTheme = new SimpleObjectProperty<>(initial);
+    }
 
     private ThemeManager() {}
 
@@ -42,40 +50,40 @@ public final class ThemeManager {
     }
 
     public static void setTheme(Theme theme) {
-        currentTheme.set(theme);
+        if (theme != null) {
+            currentTheme.set(theme);
+            try {
+                PREFS.put("selected_theme", theme.name());
+            } catch (Exception ignored) {}
+        }
     }
 
     /**
-     * Installs the CampusCycle visual system on a UI root. The stylesheet is
-     * resolved from the classpath first and gracefully falls back to the
-     * existing application's stylesheet setup when the resource is absent.
+     * Resolves a theme stylesheet, preferring the packaged copy. Another agent
+     * removes the stale root-level duplicates, so this must never depend on them (P-099).
+     */
+    public static java.net.URL resolve(String file) {
+        java.net.URL url = ThemeManager.class.getResource("/bd/ac/kuet/campuscycle/" + file);
+        if (url == null) {
+            url = ThemeManager.class.getResource("/" + file);
+        }
+        if (url == null) {
+            url = ThemeManager.class.getResource(file);
+        }
+        return url;
+    }
+
+    /**
+     * Installs the CampusCycle visual system on a UI root. This only tags the
+     * root class; the Scene-level stylesheet owned by the application shell is
+     * the single styling mechanism. In particular this registers NO static
+     * theme listener — one per install() call leaked every visited Parent (P-108).
      */
     public static void install(Node root) {
         if (root == null) return;
         if (!root.getStyleClass().contains("app-root")) {
             root.getStyleClass().add("app-root");
         }
-        if (!(root instanceof Parent parent)) return;
-        String resource = isDark() ? "theme-dark.css" : "theme-light.css";
-        java.net.URL url = ThemeManager.class.getResource("/" + resource);
-        if (url == null) {
-            url = ThemeManager.class.getResource("/bd/ac/kuet/campuscycle/" + resource);
-        }
-        if (url == null) {
-            url = ThemeManager.class.getResource(resource);
-        }
-        if (url != null && !parent.getStylesheets().contains(url.toExternalForm())) {
-            parent.getStylesheets().add(url.toExternalForm());
-        }
-        currentTheme.addListener((obs, oldTheme, newTheme) -> {
-            String next = newTheme == Theme.DARK ? "theme-dark.css" : "theme-light.css";
-            java.net.URL nextUrl = ThemeManager.class.getResource("/" + next);
-            if (nextUrl == null) nextUrl = ThemeManager.class.getResource("/bd/ac/kuet/campuscycle/" + next);
-            if (nextUrl == null) nextUrl = ThemeManager.class.getResource(next);
-            if (nextUrl == null) return;
-            parent.getStylesheets().removeIf(u -> u.endsWith("theme-light.css") || u.endsWith("theme-dark.css"));
-            parent.getStylesheets().add(nextUrl.toExternalForm());
-        });
     }
 
     // High-Precision Vector SVG Paths
@@ -83,6 +91,8 @@ public final class ThemeManager {
             "M5 17a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm14 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 14h5l3-6h4M12 8l-2 6m5-3h4M17 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z";
     public static final String ICON_PIN =
             "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z";
+    public static final String ICON_GPS =
+            "M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z";
     public static final String ICON_NAV =
             "M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z";
     public static final String ICON_CLOCK =
@@ -125,8 +135,24 @@ public final class ThemeManager {
             "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z";
     public static final String ICON_ALERT =
             "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z";
+    public static final String ICON_BELL =
+            "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z";
+    public static final String ICON_HOME =
+            "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z";
+    public static final String ICON_MAP =
+            "M15 4.5l-6 2L3 4.5v15l6 2 6-2 6 2v-15l-6-2zm0 13.5l-6 2v-11l6-2v11z";
+    public static final String ICON_BOOK =
+            "M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12V2zm-7 9H7V9h4v2zm6 4H7v-2h10v2z";
+    public static final String ICON_WALLET =
+            "M21 7H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zm-9 7c-.83 0-1.5-.67-1.5-1.5S11.17 11 12 11s1.5.67 1.5 1.5S12.83 14 12 14zm6 0c-.83 0-1.5-.67-1.5-1.5S17.17 11 18 11s1.5.67 1.5 1.5S18.83 14 18 14z";
+    public static final String ICON_CHAT =
+            "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 9H7V9h4v2zm6 0h-4V9h4v2z";
     public static final String ICON_CARD =
             "M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z";
+    public static final String ICON_HEART =
+            "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z";
+    public static final String ICON_INFO =
+            "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z";
 
     public static SVGPath createIcon(String pathData, double size, Color fill) {
         SVGPath path = new SVGPath();

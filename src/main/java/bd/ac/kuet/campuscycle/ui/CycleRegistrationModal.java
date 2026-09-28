@@ -1,17 +1,19 @@
 package bd.ac.kuet.campuscycle.ui;
 
+import bd.ac.kuet.campuscycle.data.CampusRepository;
+import bd.ac.kuet.campuscycle.data.DatabaseConnection;
 import bd.ac.kuet.campuscycle.data.EventBus;
-import bd.ac.kuet.campuscycle.data.LocalDatabase;
+import bd.ac.kuet.campuscycle.data.SupabaseCampusRepository;
 import bd.ac.kuet.campuscycle.domain.*;
 import bd.ac.kuet.campuscycle.domain.event.CycleStatusChangedEvent;
 import bd.ac.kuet.campuscycle.service.AppExecutor;
-import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -74,6 +76,9 @@ public class CycleRegistrationModal extends StackPane {
         Button closeBtn = ThemeManager.createIconButton(ThemeManager.ICON_CLOSE, 14, "action-icon-btn", onClose);
         top.getChildren().addAll(titleCol, spacer, closeBtn);
 
+        // Dock banner derived from campus photography (null-safe fallback: no art)
+        javafx.scene.image.ImageView dockArt = BikeArt.bannerView("campus-dock.png", 456, 110);
+
         // Form Fields
         Label l1 = new Label("CYCLE MODEL / LABEL");
         l1.getStyleClass().add("metric-label");
@@ -134,7 +139,11 @@ public class CycleRegistrationModal extends StackPane {
         btnRow.getChildren().addAll(cancelBtn, submitBtn);
 
         card.getChildren().addAll(
-                top,
+                top);
+        if (dockArt != null) {
+            card.getChildren().add(dockArt);
+        }
+        card.getChildren().addAll(
                 l1, labelField,
                 l2, typeCombo,
                 l3, conditionBox,
@@ -180,6 +189,12 @@ public class CycleRegistrationModal extends StackPane {
         String hub = pickupCombo.getValue();
         bd.ac.kuet.campuscycle.domain.CampusHubs.Hub hubRef =
                 bd.ac.kuet.campuscycle.domain.CampusHubs.byName(hub);
+        if (hubRef == null) {
+            submitBtn.setDisable(false);
+            submitBtn.setText("Submit Cycle Listing");
+            showError("Invalid station hub selected. Please choose a valid campus station.");
+            return;
+        }
         double lat = hubRef.lat();
         double lng = hubRef.lng();
 
@@ -202,10 +217,27 @@ public class CycleRegistrationModal extends StackPane {
                 AvailabilityStatus.AVAILABLE
         );
 
-        // Save registered cycle and notify observers
+        // Save registered cycle to Supabase and notify observers
         AppExecutor.asyncThenFx(
                 () -> {
-                    LocalDatabase.getInstance().saveCycle(newCycle);
+                    if (!DatabaseConnection.isAvailable()) {
+                        throw new AppError("OFFLINE", "Database connection required for cycle registration.");
+                    }
+                    CampusRepository repo = new SupabaseCampusRepository();
+                    // allCycles() is admin-only; a student checks their own approved
+                    // bikes plus their own pending submissions instead.
+                    List<CycleItem> mine = new java.util.ArrayList<>(repo.catalog(user));
+                    try {
+                        for (CycleItem c : repo.pendingCycles()) {
+                            if (c.ownerId().equals(user.id())) mine.add(c);
+                        }
+                    } catch (Exception ignored) {}
+                    boolean duplicate = mine.stream()
+                            .anyMatch(c -> c.ownerId().equals(user.id()) && c.label().equalsIgnoreCase(label.trim()));
+                    if (duplicate) {
+                        throw new IllegalArgumentException("You have already registered a cycle with the name '" + label.trim() + "'.");
+                    }
+                    repo.addCycle(newCycle);
                     return newCycle;
                 },
                 created -> {

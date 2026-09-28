@@ -6,14 +6,17 @@ import java.util.Objects;
 /**
  * Maintenance ticket domain record tracking fleet damage reports,
  * inspections, and repair resolutions.
+ *
+ * Status and category are typed enums (P-040). A ticket can only be resolved
+ * once, and only by a technician or admin — enforced by MaintenanceService.
  */
 public record MaintenanceTicket(
         String id,
         String cycleId,
         String reportedByUserId,
-        String issueCategory,
+        IssueCategory issueCategory,
         String description,
-        String status,
+        TicketStatus status,
         ZonedDateTime reportedAt,
         ZonedDateTime resolvedAt,
         String technicianNotes,
@@ -30,52 +33,73 @@ public record MaintenanceTicket(
         Objects.requireNonNull(reportedAt, "Reported at timestamp must not be null");
     }
 
-    public MaintenanceTicket(String id, String cycleId, String reportedByUserId, String issueCategory, String description) {
-        this(id, cycleId, reportedByUserId, issueCategory, description, TicketStatus.OPEN.name(), ZonedDateTime.now(), null, null, 0);
+    public MaintenanceTicket(String id, String cycleId, String reportedByUserId, IssueCategory issueCategory, String description) {
+        this(id, cycleId, reportedByUserId, issueCategory, description, TicketStatus.OPEN, CampusTime.now(), null, "", 0);
     }
 
-    public MaintenanceTicket(String id, String cycleId, String reportedByUserId, IssueCategory issueCategory, String description) {
-        this(id, cycleId, reportedByUserId, issueCategory.name(), description, TicketStatus.OPEN.name(), ZonedDateTime.now(), null, null, 0);
+    public MaintenanceTicket(String id, String cycleId, String reportedByUserId, String issueCategory, String description) {
+        this(id, cycleId, reportedByUserId, IssueCategory.fromString(issueCategory), description);
+    }
+
+    public MaintenanceTicket(String id, String cycleId, String reportedByUserId, String issueCategory,
+                             String description, String status, ZonedDateTime reportedAt,
+                             ZonedDateTime resolvedAt, String technicianNotes, int repairCostPoisha) {
+        this(id, cycleId, reportedByUserId, IssueCategory.fromString(issueCategory), description,
+                TicketStatus.fromString(status), reportedAt,
+                resolvedAt, technicianNotes != null ? technicianNotes : "",
+                Math.max(0, repairCostPoisha));
     }
 
     public boolean isOpen() {
-        return TicketStatus.OPEN.name().equalsIgnoreCase(status) || TicketStatus.IN_PROGRESS.name().equalsIgnoreCase(status);
+        return status == TicketStatus.OPEN || status == TicketStatus.IN_PROGRESS;
     }
 
     public boolean isResolved() {
-        return TicketStatus.RESOLVED.name().equalsIgnoreCase(status);
+        return status == TicketStatus.RESOLVED;
+    }
+
+    public MaintenanceTicket withStartedWork() {
+        if (isResolved()) {
+            throw new IllegalStateException("Ticket already resolved: " + id);
+        }
+        return new MaintenanceTicket(id, cycleId, reportedByUserId, issueCategory, description,
+                TicketStatus.IN_PROGRESS, reportedAt, resolvedAt, technicianNotes, repairCostPoisha);
     }
 
     public MaintenanceTicket withResolved(ZonedDateTime resolvedAt, String technicianNotes, int repairCostPoisha) {
+        if (isResolved()) {
+            throw new IllegalStateException("Ticket already resolved: " + id);
+        }
         return new MaintenanceTicket(
                 id,
                 cycleId,
                 reportedByUserId,
                 issueCategory,
                 description,
-                TicketStatus.RESOLVED.name(),
+                TicketStatus.RESOLVED,
                 reportedAt,
-                resolvedAt != null ? resolvedAt : ZonedDateTime.now(),
+                resolvedAt != null ? resolvedAt : CampusTime.now(),
                 technicianNotes != null ? technicianNotes : "",
                 Math.max(0, repairCostPoisha)
         );
     }
 
-    // Bean getters
+    // Bean getters (String views for UI bindings / legacy callers)
     public String getId() { return id; }
     public String getCycleId() { return cycleId; }
     public String getReportedByUserId() { return reportedByUserId; }
-    public String getIssueCategory() { return issueCategory; }
+    public String getIssueCategory() { return issueCategory.name(); }
     public String getDescription() { return description; }
-    public String getStatus() { return status; }
+    public String getStatus() { return status.name(); }
     public ZonedDateTime getReportedAt() { return reportedAt; }
     public ZonedDateTime getResolvedAt() { return resolvedAt; }
     public String getTechnicianNotes() { return technicianNotes; }
     public int getRepairCostPoisha() { return repairCostPoisha; }
 
     public String ticketId() { return id; }
+    /** NOTE: returns the cycle id, not a human label (kept for compatibility). */
     public String cycleLabel() { return cycleId; }
-    public String category() { return issueCategory; }
+    public String category() { return issueCategory.name(); }
     public String reportedBy() { return reportedByUserId; }
     public double repairCost() { return repairCostPoisha / 100.0; }
     public String reportedDate() {

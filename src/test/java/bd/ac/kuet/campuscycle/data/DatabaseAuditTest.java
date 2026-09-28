@@ -1,6 +1,8 @@
 package bd.ac.kuet.campuscycle.data;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -8,6 +10,9 @@ import java.sql.Statement;
 /**
  * Deep audit of live Supabase database — tables, columns, constraints, functions, triggers, data.
  */
+// Live-DB integration test: runs only with CC_TEST_DB=true against a disposable database. Never the pilot.
+@Tag("integration")
+@EnabledIfEnvironmentVariable(named = "CC_TEST_DB", matches = "true")
 public class DatabaseAuditTest {
 
     @Test
@@ -28,7 +33,7 @@ public class DatabaseAuditTest {
             }
 
             // 2. Columns for key tables
-            String[] tables = {"profiles", "cycles", "rentals", "rate_cards", "payment_records", "disputes", "support_conversations", "support_messages", "audit_events"};
+            String[] tables = {"profiles", "cycles", "rentals", "rate_cards", "payment_records", "disputes", "support_conversations", "support_messages", "audit_events", "pending_registrations", "wallets", "wallet_transactions", "maintenance_tickets"};
             for (String t : tables) {
                 System.out.println("\n=== COLUMNS: " + t + " ===");
                 try (ResultSet rs = stmt.executeQuery(
@@ -87,10 +92,10 @@ public class DatabaseAuditTest {
 
             // 7. Rate card data
             System.out.println("\n=== RATE CARDS ===");
-            try (ResultSet rs = stmt.executeQuery("SELECT version, base_minutes, base_charge_poisha, extra_block_minutes, extra_block_charge_poisha, maximum_minutes FROM public.rate_cards")) {
+            try (ResultSet rs = stmt.executeQuery("SELECT version, minimum_minutes, interval_minutes, base_amount_poisha, interval_amount_poisha FROM public.rate_cards")) {
                 while (rs.next()) {
-                    System.out.printf("  v%d: base=%dm/%dp, extra=%dm/%dp, max=%dm%n",
-                        rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4), rs.getInt(5), rs.getInt(6));
+                    System.out.printf("  v%d: min=%dm, interval=%dm, base=%dp, interval=%dp%n",
+                        rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4), rs.getInt(5));
                 }
             }
 

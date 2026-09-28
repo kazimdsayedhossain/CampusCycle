@@ -7,7 +7,11 @@ public enum TransactionType {
     DEPOSIT,
     RENTAL_CHARGE,
     OVERDUE_FINE,
-    REFUND;
+    REFUND,
+    /** Bike-owner share of a settled fare credited on return. */
+    OWNER_PAYOUT,
+    /** Collection against persistent ride dues (overdue/overtime arrears). */
+    DUES_SETTLEMENT;
 
     public static TransactionType fromString(String type) {
         if (type == null || type.isBlank()) {

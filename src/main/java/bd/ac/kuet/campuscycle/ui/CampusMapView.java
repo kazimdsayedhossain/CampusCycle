@@ -5,7 +5,9 @@ import bd.ac.kuet.campuscycle.domain.CampusUser;
 import bd.ac.kuet.campuscycle.domain.CycleItem;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.AccessibleRole;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 
@@ -33,7 +35,7 @@ public class CampusMapView extends VBox {
 
     public static final List<StationZone> ALL_ZONES = List.of(
             // 5 Campus Hubs
-            new StationZone("hub-1", "KUET Central Library", 22.9009, 89.5016, "CAMPUS", "Main library hub with campus bicycle docks", "#2EB5A4", 32),
+            new StationZone("hub-1", "KUET Central Mosque", 22.9009, 89.5016, "CAMPUS", "Central mosque hub with campus bicycle docks", "#2EB5A4", 32),
             new StationZone("hub-2", "Student Welfare Centre", 22.9017, 89.5030, "CAMPUS", "SWC cafeteria & student plaza dock", "#2EB5A4", 28),
             new StationZone("hub-3", "KUET Main Gate", 22.8987, 89.4981, "CAMPUS", "Fulbarigate entrance connector", "#F59E0B", 24),
             new StationZone("hub-4", "Hall Gate", 22.9045, 89.5060, "CAMPUS", "Residential halls & sports ground gateway", "#8B5CF6", 20),
@@ -59,9 +61,13 @@ public class CampusMapView extends VBox {
     private final TextField searchField = new TextField();
     private String activeCategory = "ALL";
 
-    private final Button btnAll = new Button("All Zones (12)");
-    private final Button btnCampus = new Button("Campus Hubs (5)");
-    private final Button btnKhulna = new Button("Khulna City (7)");
+    private final Button btnAll = new Button("All Zones (" + ALL_ZONES.size() + ")");
+    private final Button btnCampus = new Button("Campus Hubs (" + countZones("CAMPUS") + ")");
+    private final Button btnKhulna = new Button("Khulna City (" + countZones("KHULNA") + ")");
+
+    private static long countZones(String category) {
+        return ALL_ZONES.stream().filter(z -> z.category().equals(category)).count();
+    }
 
     public CampusMapView(CampusUser user,
                          List<CycleItem> cycles,
@@ -74,9 +80,10 @@ public class CampusMapView extends VBox {
         this.onLocationChanged = onLocationChanged;
 
         setSpacing(20);
-        setPadding(new Insets(24, 32, 36, 32));
+        setPadding(new Insets(6, 16, 24, 16));
         setAlignment(Pos.TOP_CENTER);
-        setMaxWidth(1200);
+        setMaxWidth(Double.MAX_VALUE);
+        setStyle("-fx-background-color: transparent;");
 
         HBox header = createHeader();
         HBox splitLayout = createSplitLayout();
@@ -89,13 +96,9 @@ public class CampusMapView extends VBox {
         HBox row = new HBox(16);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleCol = new VBox(2);
-        Label title = new Label("KUET Campus Map & Stations");
-        title.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
-
         Label sub = new Label("Find nearby bike stations, available cycles, and campus dock hubs");
-        sub.setStyle("-fx-font-size: 13px; -fx-opacity: 0.75;");
-        titleCol.getChildren().addAll(title, sub);
+        sub.getStyleClass().add("view-subtitle");
+        sub.setStyle("-fx-font-size: 15px; -fx-font-weight: 600; -fx-text-fill: -fx-ink-700;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -104,7 +107,7 @@ public class CampusMapView extends VBox {
         catalogBtn.getStyleClass().add("primary-button");
         catalogBtn.setOnAction(e -> onNavigate.accept("Fleet Catalog"));
 
-        row.getChildren().addAll(titleCol, spacer, catalogBtn);
+        row.getChildren().addAll(sub, spacer, catalogBtn);
         return row;
     }
 
@@ -112,14 +115,16 @@ public class CampusMapView extends VBox {
         HBox split = new HBox(18);
         split.setAlignment(Pos.TOP_LEFT);
 
-        // Left Panel (Wheat Field Directory)
+        // Left Panel (Wheat Field Directory): fixed-ish width but shrinkable —
+        // minWidth 0 lets the split fit narrow viewports; the map takes the rest.
         VBox leftPanel = createDirectoryPanel();
-        leftPanel.setPrefWidth(380);
-        leftPanel.setMinWidth(360);
+        leftPanel.setPrefWidth(360);
+        leftPanel.setMinWidth(0);
         leftPanel.setMaxWidth(400);
 
-        // Right Panel (Bing Map)
+        // Right Panel (Bing Map): grows to fill all remaining space.
         VBox rightPanel = new VBox(10);
+        rightPanel.setMinWidth(0);
         HBox.setHgrow(rightPanel, Priority.ALWAYS);
 
         bingMapView = new BingMapView(
@@ -142,6 +147,8 @@ public class CampusMapView extends VBox {
         VBox panel = new VBox(12);
         panel.getStyleClass().add("bento-card");
         panel.setPadding(new Insets(18));
+        panel.setMinWidth(0);
+        panel.setStyle("-fx-background-color: -fx-surface; -fx-background-radius: 16px; -fx-border-color: -fx-ink-400; -fx-border-radius: 16px; -fx-border-width: 1px; -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.04), 16, 0, 0, 4);");
 
         Label dirTitle = new Label("Stations & Roaming Hubs");
         dirTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: 800;");
@@ -149,9 +156,15 @@ public class CampusMapView extends VBox {
         // Search Input
         searchField.setPromptText("Filter by station name...");
         searchField.getStyleClass().add("modern-input");
+        searchField.setAccessibleText("Filter stations by name");
+        dirTitle.setLabelFor(searchField);
         searchField.textProperty().addListener((obs, oldV, newV) -> renderStationCards());
 
-        // Category Pills
+        // Category Pills: labels derived from ALL_ZONES so edits stay in sync (P-144)
+        btnAll.setText("All Zones (" + ALL_ZONES.size() + ")");
+        btnCampus.setText("Campus Hubs (" + countZones("CAMPUS") + ")");
+        btnKhulna.setText("Khulna City (" + countZones("KHULNA") + ")");
+
         HBox pillRow = new HBox(6);
         setupPill(btnAll, "ALL");
         setupPill(btnCampus, "CAMPUS");
@@ -162,7 +175,7 @@ public class CampusMapView extends VBox {
         // Scrollable Card List
         ScrollPane scroll = new ScrollPane(cardsContainer);
         scroll.setFitToWidth(true);
-        scroll.setPrefHeight(460);
+        scroll.setPrefHeight(490);
         scroll.getStyleClass().add("scroll-pane");
 
         panel.getChildren().addAll(dirTitle, searchField, pillRow, scroll);
@@ -205,13 +218,19 @@ public class CampusMapView extends VBox {
         VBox card = new VBox(6);
         card.getStyleClass().add("sub-panel");
         card.setPadding(new Insets(12, 14, 12, 14));
-        card.setStyle(card.getStyle() + String.format("; -fx-border-color: transparent transparent transparent %s; -fx-border-width: 0 0 0 4px; -fx-cursor: hand;", zone.accentHex()));
+        // One full style string — never concat onto getStyle() (P-183).
+        // Accent border only; surface fill comes from the sub-panel class.
+        card.setStyle(String.format("-fx-border-color: transparent transparent transparent %s; -fx-border-width: 0 0 0 4px; -fx-cursor: hand;", zone.accentHex()));
+        // Keyboard + screen-reader access: the card is a click target (P-182).
+        card.setFocusTraversable(true);
+        card.setAccessibleRole(AccessibleRole.BUTTON);
+        card.setAccessibleText("Focus map on " + zone.name() + ". " + zone.description());
 
         HBox top = new HBox(8);
         top.setAlignment(Pos.CENTER_LEFT);
 
         Label name = new Label(zone.name());
-        name.setStyle("-fx-font-size: 13.5px; -fx-font-weight: 750;");
+        name.setStyle("-fx-font-size: 13.5px; -fx-font-weight: 800;");
 
         Region sp = new Region();
         HBox.setHgrow(sp, Priority.ALWAYS);
@@ -237,11 +256,15 @@ public class CampusMapView extends VBox {
         Button focusBtn = new Button("Focus Map");
         focusBtn.getStyleClass().add("secondary-button");
         focusBtn.setStyle("-fx-font-size: 10.5px; -fx-padding: 3px 8px;");
+        focusBtn.setAccessibleText("Focus map on " + zone.name());
         focusBtn.setOnAction(e -> {
             if (bingMapView != null) {
                 bingMapView.focusLocation(zone.lat(), zone.lng());
             }
         });
+        // Stop the click bubbling to the card handler (P-182): the button
+        // action fires first; consuming the mouse event prevents a double focus.
+        focusBtn.setOnMouseClicked(e -> e.consume());
 
         actionRow.getChildren().add(focusBtn);
 
@@ -250,6 +273,14 @@ public class CampusMapView extends VBox {
         card.setOnMouseClicked(e -> {
             if (bingMapView != null) {
                 bingMapView.focusLocation(zone.lat(), zone.lng());
+            }
+        });
+        card.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ENTER || e.getCode() == KeyCode.SPACE) {
+                if (bingMapView != null) {
+                    bingMapView.focusLocation(zone.lat(), zone.lng());
+                }
+                e.consume();
             }
         });
 

@@ -9,6 +9,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Live external weather service demonstrating:
@@ -26,11 +28,19 @@ public class WeatherService {
     private static final java.net.http.HttpClient SHARED_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(6))
             .build();
+    private static final Logger LOGGER = Logger.getLogger(WeatherService.class.getName());
+
     private static volatile KhulnaWeather cached;
     private static volatile long cachedAt = 0;
 
     private final HttpClient httpClient = SHARED_CLIENT;
 
+    /**
+     * @param live   true when freshly fetched from the API; false for the
+     *               offline fallback (P-062). Callers must render "--°C" +
+     *               "unavailable" when {@code live == false}.
+     * @param source where the reading came from ("open-meteo" or "fallback").
+     */
     public record KhulnaWeather(
             double temperatureCelsius,
             int relativeHumidity,
@@ -38,7 +48,9 @@ public class WeatherService {
             int weatherCode,
             String conditionDescription,
             boolean isSafeForCycling,
-            String advice
+            String advice,
+            boolean live,
+            String source
     ) {}
 
     public WeatherService() {
@@ -46,16 +58,19 @@ public class WeatherService {
 
     /**
      * Fetches current Khulna weather asynchronously with 5-min cache.
+     * Fallbacks are never cached; only live readings populate the cache.
      */
     public CompletableFuture<KhulnaWeather> fetchCurrentWeatherAsync() {
         KhulnaWeather hit = cached;
-        if (hit != null && System.currentTimeMillis() - cachedAt < 300_000) {
+        if (hit != null && hit.live() && System.currentTimeMillis() - cachedAt < 300_000) {
             return CompletableFuture.completedFuture(hit);
         }
         return AppExecutor.supplyAsync(() -> {
             KhulnaWeather fresh = this.fetchCurrentWeather();
-            cached = fresh;
-            cachedAt = System.currentTimeMillis();
+            if (fresh.live()) {
+                cached = fresh;
+                cachedAt = System.currentTimeMillis();
+            }
             return fresh;
         });
     }
@@ -80,12 +95,19 @@ public class WeatherService {
 
             // Parse JSON using Gson
             JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+            if (root == null || !root.has("current") || !root.get("current").isJsonObject()) {
+                return fallbackWeather("Missing current node in payload");
+            }
             JsonObject current = root.getAsJsonObject("current");
 
-            double temp = current.get("temperature_2m").getAsDouble();
-            int humidity = current.get("relative_humidity_2m").getAsInt();
-            double wind = current.get("wind_speed_10m").getAsDouble();
-            int code = current.get("weather_code").getAsInt();
+            double temp = (current.has("temperature_2m") && !current.get("temperature_2m").isJsonNull())
+                    ? current.get("temperature_2m").getAsDouble() : 28.5;
+            int humidity = (current.has("relative_humidity_2m") && !current.get("relative_humidity_2m").isJsonNull())
+                    ? current.get("relative_humidity_2m").getAsInt() : 72;
+            double wind = (current.has("wind_speed_10m") && !current.get("wind_speed_10m").isJsonNull())
+                    ? current.get("wind_speed_10m").getAsDouble() : 11.2;
+            int code = (current.has("weather_code") && !current.get("weather_code").isJsonNull())
+                    ? current.get("weather_code").getAsInt() : 1;
 
             String condition = mapWeatherCode(code);
             boolean safe = code < 60 && wind < 35.0; // No heavy rain or storm winds
@@ -93,7 +115,7 @@ public class WeatherService {
                     ? "Great conditions for campus ride • " + temp + "°C"
                     : "Rain / gusty winds detected • Ride carefully";
 
-            return new KhulnaWeather(temp, humidity, wind, code, condition, safe, advice);
+            return new KhulnaWeather(temp, humidity, wind, code, condition, safe, advice, true, "open-meteo");
 
         } catch (Exception e) {
             return fallbackWeather(e.getMessage());
@@ -115,14 +137,17 @@ public class WeatherService {
     }
 
     private KhulnaWeather fallbackWeather(String reason) {
+        LOGGER.log(Level.WARNING, "Weather unavailable, returning offline fallback. Reason: {0}", reason);
         return new KhulnaWeather(
                 28.5,
                 72,
                 11.2,
                 1,
-                "Partly Cloudy (Cached)",
+                "Unavailable",
                 true,
-                "Optimal campus cycling conditions"
+                "Live weather unavailable — check your connection",
+                false,
+                "fallback"
         );
     }
 }
